@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --partition=kern
+#SBATCH --job-name=stats_ts
+#SBATCH --time=12:00:00
+#SBATCH --mem 16G
+#SBATCH --output=stats_ts.out         ### File in which to store job output
+#SBATCH --error=stats_ts.err          ### File in which to store job error messages
+
+module load cuda/9.0
+module use /projects/apps/shared/modulefiles/
+
+#module load python3 tskit SLiM
+
+python3 /home/murillor/projects/slim_sims/win_stats_ts.py "/home/murillor/projects/slim_sims/${1}" ${2} ${3} ${4}
+
+
+#folders=( N_10000_mu_0_r_1.5e-08_deff_0_L_50000000/ N_10000_mu_0_r_1e-08_deff_0_L_50000000/ N_10000_mu_1e-08_r_1.5e-08_deff_100_L_50000000/ N_10000_mu_1e-08_r_1.5e-08_deff_10_L_50000000/ N_10000_mu_1e-08_r_1e-08_deff_100_L_50000000/ N_10000_mu_1e-08_r_1e-08_deff_10_L_50000000/ N_10000_mu_1e-09_r_1.5e-08_deff_100_L_50000000/ N_10000_mu_1e-09_r_1.5e-08_deff_10_L_50000000/ N_10000_mu_1e-09_r_1e-08_deff_100_L_50000000/ N_10000_mu_1e-09_r_1e-08_deff_10_L_50000000/ )
+#sleep 1h; for fo in  "${folders[@]}"; do sbatch run_stats_ts.srun $fo 100000 20 'gene'; done
+

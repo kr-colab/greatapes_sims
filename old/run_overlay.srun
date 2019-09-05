@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --partition=kern,long,longfat,short,
+#SBATCH --job-name=overl
+#SBATCH --time=12:00:00
+#SBATCH --mem 32G
+#SBATCH --output=overl.out         ### File in which to store job output
+#SBATCH --error=overl.err          ### File in which to store job error messages
+
+module load cuda/9.0
+module use /projects/apps/shared/modulefiles/
+
+#module load python3 tskit SLiM
+
+python3 /home/murillor/projects/slim_sims/overlay.py ${1} "gene" "/home/murillor/projects/slim_sims/start_end_pos_cons.txt"
+
+
+#find $PWD -type f -name "*677.trees" ! -path "/home/murillor/projects/slim_sims/old/*" -exec sbatch --open-mode=append --verbose run_overlay.srun {} \;
+
