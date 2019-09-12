@@ -1,0 +1,40 @@
+// neutral two population split, using burning from treeseq
+initialize() {
+	if(0) {
+		defineConstant("path","/tmp/");
+		defineConstant("path_burnin","/tmp/neutral_N_100_RAND_123.trees");
+		defineConstant("prefix", "neutral");
+		//defineConstant("path","/Users/murillo/Drive/phd/w19/rotation/trees/");
+		defineConstant("N1", 100);
+		defineConstant("N2", 100);
+		defineConstant("gens", 100);
+		defineConstant("mu", 1e-9);
+		defineConstant("r", 1.5e-8);
+		defineConstant("L", 5e7); // total chromosome length
+		defineConstant("RAND", 123); // random identifier
+	}
+
+	initializeTreeSeq();
+
+	initializeMutationRate(mu);
+	//neutral mutations
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeRecombinationRate(r, L-1);
+	initializeGenomicElementType("g1", asInteger("1"), 1.0);
+	initializeGenomicElement(g1, 0, L-1);
+}
+
+// create a population of N individuals
+//schedule sampling times depending on N
+1 late() {
+	sim.readFromPopulationFile(path_burnin);
+	sim.addSubpopSplit(2, N2, 1);
+	p1.setSubpopulationSize(N1);
+	sim.rescheduleScriptBlock(s0, generations=sim.generation+asInteger(gens)); //schedule sampling after gens
+}
+
+// wait gens after split
+s0 10 late() {
+	sim.treeSeqOutput(path+prefix+"_N1_"+N1+"_N2_"+N2+"_RAND_"+RAND+".trees");
+	catn(path+prefix+"_N1_"+N1+"_N2_"+N2+"_RAND_"+RAND+".trees");
+}
