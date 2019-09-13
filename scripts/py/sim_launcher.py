@@ -19,7 +19,7 @@ write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, 
 if (slurm):
     cmd = "sbatch "+rand+".sh"
 else:
-    cmd = "sh "+rand+".sh" 
+    cmd = "sh "+rand+".sh"
 out = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
 
 if (out.returncode != 0):
@@ -29,4 +29,4 @@ else:
     jid = out.stdout.decode().strip().split(" ")[-1]
     write_meta(meta_path, var_names, values, rand, jid)
 
-os.remove(rand+".srun")
+os.remove(rand+".sh")
