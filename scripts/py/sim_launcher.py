@@ -15,7 +15,7 @@ rand = id_generator()
 var_names = ["ancN", "mu", "r", "L", "RAND"]
 values = ["10000","0","1.5e-8","50818468",rand]
 
-write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, mutate=1e-9, prefix_mut, slurm)
+write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, 1e-9, prefix_mut, slurm)
 if (slurm):
     cmd = "sbatch "+rand+".sh"
 else:
