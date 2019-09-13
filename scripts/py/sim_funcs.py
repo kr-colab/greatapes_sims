@@ -14,8 +14,8 @@ def write_meta(meta_path, var_names, values, rand, jid):
         print("#################################", file=fh)
 
 def write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, mutate=0, prefix_mut="", slurm=True, time = "4:00:00", mem = "4G"):
-    outfile=values[out_path+prefix+"_RAND_"+values[var_names.index("RAND")]+".trees"
-    out_mut = outfile=values[out_path+prefix_mut+"_RAND_"+values[var_names.index("RAND")]+".trees"
+    outfile = out_path+prefix+"_RAND_"+values[var_names.index("RAND")]+".trees"
+    out_mut = out_path+prefix_mut+"_RAND_"+values[var_names.index("RAND")]+".trees"
     var_names.append("outfile")
     values.append(outfile)
     out = "out."+prefix
