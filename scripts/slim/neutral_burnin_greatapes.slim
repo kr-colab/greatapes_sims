@@ -13,20 +13,20 @@ initialize() {
 
 	initializeTreeSeq(checkCoalescence=T);
 
-	initializeMutationRate(mu);
+	initializeMutationRate(asFloat(mu));
 	//neutral mutations
 	initializeMutationType("m1", 0.5, "f", 0.0);
-	initializeRecombinationRate(r, L-1);
+	initializeRecombinationRate(asFloat(r), asInteger(L)-1);
 	initializeGenomicElementType("g1", asInteger("1"), 1.0);
-	initializeGenomicElement(g1, 0, L-1);
+	initializeGenomicElement(g1, 0, asInteger(L)-1);
 }
 
 // create a population of N individuals
 //schedule sampling times depending on N
 1 {
-	sim.addSubpop("p1", ancN);
-	sim.rescheduleScriptBlock(s0, 100*ancN, 100*ancN);
-	sim.rescheduleScriptBlock(s1, 100*ancN, 100*ancN);
+	sim.addSubpop("p1", asInteger(ancN));
+	sim.rescheduleScriptBlock(s0, 100*asInteger(ancN), 100*asInteger(ancN));
+	sim.rescheduleScriptBlock(s1, 100*asInteger(ancN), 100*asInteger(ancN));
 }
 
 //from first gen on, check if all individuals have coalesced and if so, output a treeseq
@@ -34,7 +34,7 @@ initialize() {
 	if (sim.treeSeqCoalesced() & !exists("rescheduled")) {
 		defineConstant("rescheduled",1);
 		catn(sim.generation + ": COALESCED");
-		sim.rescheduleScriptBlock(s0, sim.generation+(2*ancN), sim.generation+(2*ancN));
+		sim.rescheduleScriptBlock(s0, sim.generation+(2*asInteger(ancN)), sim.generation+(2*asInteger(ancN)));
 	}
 }
 
@@ -46,7 +46,7 @@ s0 10 late() {
 
 s1 100 late() {
 	catn("!!!!!!!!!! ABORTING !!!!!!!!!!");
-	catn("NO COALESCENCE BY GENERATION "+100*ancN);
+	catn("NO COALESCENCE BY GENERATION "+100*asInteger(ancN));
 	sim.simulationFinished();
 }
 
