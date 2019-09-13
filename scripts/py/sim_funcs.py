@@ -31,6 +31,7 @@ def write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, ra
         #slim command
         var_str = ' '.join(["-d "+var_names[i]+"=\\\""+values[i]+"\\\"" for i in range(len(var_names))])
         print("slim -m -t "+var_str+" "+script_path, file=fh)
-	if(mutate):
+        if(mutate):
             print("python overlay.py "+outfile+" "+out_mut+" "+mutate, file=fh)
+
 
