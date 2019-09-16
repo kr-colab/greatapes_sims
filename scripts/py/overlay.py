@@ -44,9 +44,10 @@ def remove_mutations(ts, start, end, proportion):
     return new_tables.tree_sequence()
 
 def overlay_varmut(ts_path, ts_path_mut, neut_mut, intervals = False):
+    s1=timer()
     ts_slim = pyslim.load(ts_path).simplify()
     ts_mut = msprime.mutate(ts_slim, neut_mut, keep=True)
-    print("Mutated", fpath, "in msprime...", flush=True)
+    print("Mutated", ts_path, "in msprime...", flush=True)
     #start, end, del_mut = extract_meta(fpath, gene_info, type)
     '''if del_mut > 0:
         s1=timer()
@@ -56,7 +57,7 @@ def overlay_varmut(ts_path, ts_path_mut, neut_mut, intervals = False):
     else:
         ts = ts_mut
     s1=timer()'''
-    ts.dump(ts_path_mut)
+    ts_mut.dump(ts_path_mut)
     s2 = timer()
     print(("Dumped overlaid trees to file", ts_path_mut, "... Time elapsed (min):"+str(round((s2-s1)/60,3))), flush=True)
 
