@@ -17,20 +17,20 @@ initialize() {
 
 	initializeTreeSeq();
 
-	initializeMutationRate(mu);
+	initializeMutationRate(asFloat(mu));
 	//neutral mutations
 	initializeMutationType("m1", 0.5, "f", 0.0);
-	initializeRecombinationRate(r, L-1);
+	initializeRecombinationRate(r, asInteger(L)-1);
 	initializeGenomicElementType("g1", asInteger("1"), 1.0);
-	initializeGenomicElement(g1, 0, L-1);
+	initializeGenomicElement(g1, 0, asInteger(L)-1);
 }
 
 // create a population of N individuals
 //schedule sampling times depending on N
 1 late() {
 	sim.readFromPopulationFile(path_burnin);
-	sim.addSubpopSplit(2, N2, 1);
-	p1.setSubpopulationSize(N1);
+	sim.addSubpopSplit(2, asInteger(N2), 1);
+	p1.setSubpopulationSize(asInteger(N1));
 	sim.rescheduleScriptBlock(s0, generations=sim.generation+asInteger(gens)); //schedule sampling after gens
 }
 
