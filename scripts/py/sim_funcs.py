@@ -11,15 +11,13 @@ def write_meta(meta_path, var_names, values, rand, jid):
     with open(meta_path+rand+"_jid_"+jid+".info", "w+") as fh:
         print('\t'.join(var_names), file=fh)
         print('\t'.join(values), file=fh)
-        print("#################################", file=fh)
+        #print("#################################", file=fh)
 
 def write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, mutate=0, prefix_mut="", slurm=True, time = "8:00:00", mem = "4G"):
     outfile = out_path+prefix+"_RAND_"+values[var_names.index("RAND")]+".trees"
     out_mut = out_path+prefix_mut+"_RAND_"+values[var_names.index("RAND")]+".trees"
     var_names.append("outfile")
     values.append(outfile)
-    out = "out."+prefix
-    err = "err."+prefix
     sh_name = rand+".sh"
     with open(sh_name, "w") as fh:
         print("#!/bin/bash", file=fh)
