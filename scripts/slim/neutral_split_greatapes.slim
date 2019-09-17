@@ -20,7 +20,7 @@ initialize() {
 	initializeMutationRate(asFloat(mu));
 	//neutral mutations
 	initializeMutationType("m1", 0.5, "f", 0.0);
-	initializeRecombinationRate(r, asInteger(L)-1);
+	initializeRecombinationRate(asFloat(r), asInteger(L)-1);
 	initializeGenomicElementType("g1", asInteger("1"), 1.0);
 	initializeGenomicElement(g1, 0, asInteger(L)-1);
 }
