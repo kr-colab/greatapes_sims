@@ -2,6 +2,8 @@ import subprocess
 import os
 from sim_funcs import *
 
+print("DO NOT FORGET TO LOAD THE RIGHT CONDA ENV")
+
 slurm=True
 meta_path = "/home/murillor/projects/greatapes_sims/meta/sims/"
 out_path = "/home/murillor/projects/greatapes_sims/output/"
