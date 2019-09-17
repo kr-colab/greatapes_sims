@@ -57,12 +57,14 @@ def overlay_varmut(ts_path, ts_path_mut, neut_mut, intervals = False):
     else:
         ts = ts_mut
     s1=timer()'''
+    print(ts_path_mut)
     ts_mut.dump(ts_path_mut)
     s2 = timer()
     print(("Dumped overlaid trees to file", ts_path_mut, "... Time elapsed (min):"+str(round((s2-s1)/60,3))), flush=True)
 
 ts_path = sys.argv[1]
 ts_path_mut = sys.argv[2]
-neut_mut = sys.argv[3]
+neut_mut = float(sys.argv[3])
+
 
 overlay_varmut(ts_path, ts_path_mut, neut_mut)
