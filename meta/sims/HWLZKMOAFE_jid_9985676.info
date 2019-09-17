@@ -1,0 +1,2 @@
+N1	N2	path_burnin	gens	mu	r	L	RAND	outfile
+10000	10000	/home/murillor/projects/greatapes_sims/output/neut_burn_unmut_RAND_R3MVZ1633Q.trees	556920.0	0	1.5e-8	50818468	HWLZKMOAFE	/home/murillor/projects/greatapes_sims/output/neut_split_RAND_HWLZKMOAFE.trees
