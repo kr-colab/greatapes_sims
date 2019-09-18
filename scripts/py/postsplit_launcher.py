@@ -15,7 +15,7 @@ script_path = "/home/murillor/projects/greatapes_sims/scripts/slim/neutral_split
 burnin_path = "/home/murillor/projects/greatapes_sims/output/neut_burn_unmut_RAND_R3MVZ1633Q.trees"
 prefix = "neut_split"
 prefix_mut = "neut_split_mut"
-mutate=1e-9
+mutate=1.4e-8
 
 tb = pd.read_csv(table_path)
 gens = tb.gens.unique()
