@@ -1,0 +1,8 @@
+#!/bin/bash
+#SBATCH --job-name=overl
+
+module use /projects/apps/shared/modulefiles/
+
+out=${1/neut_split_RAND/neut_split_mut_RAND}
+
+python /home/murillor/projects/greatapes_sims/scripts/py/overlay.py ${1} $out 1e-9
