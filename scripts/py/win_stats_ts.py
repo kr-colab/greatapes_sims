@@ -23,6 +23,21 @@ def ac_from_ts(ts, n_pops, N):
     pos=np.array([s.position for s in ts.sites()])
     return(acs, pos)
 
+def win_stats_from_ts(ts_path, n_pops, N, L, win_size):
+    #getting the identifier of the treeseq
+    matches = re.match( r'.+RAND_(.+).trees', foname)
+    rand_id = matches.groups()[0]
+    #getting all pairwise combinations of pops
+    x = np.arange(n_pops)
+    combs = list(itertools.combinations(x, 2))
+    ts = pyslim.load(ts_path).simplify()
+    s1 = timer()
+    acs, pos = ac_from_ts(ts, n_pops, N)
+    print("Calculating single population stats...", flush=True)
+    for j in range(n_pops):
+        pi, windows, n_bases, counts = allel.windowed_diversity(pos, acs[j], size=win_size,   start=1, stop=L)
+        D, windows, counts = allel.windowed_tajima_d(pos, acs[j], size=win_size, start=1,     stop=L)
+
 def win_pi_sims(path, neut_mut, n_pops, n_sims, T, win_size, L, N):
     foname = os.path.basename(path[:-1])
     print(("Base filename:"+foname), flush=True)
@@ -36,7 +51,7 @@ def win_pi_sims(path, neut_mut, n_pops, n_sims, T, win_size, L, N):
         for i in range(n_sims):
             files = glob(path+str(T[t])+"N_sim_"+str(i)+"_RAND_*[0-9]_overlaid.trees")
             print(files)
-            assert (len(files) == 1), str(len(files))+" file(s) found with glob T: "+str(T[t])+" sim:"+str(i)
+    cs, pos = ac_from_ts(ts, n_pops, N)        assert (len(files) == 1), str(len(files))+" file(s) found with glob T: "+str(T[t])+" sim:"+str(i)
             filename= files[0]
             print(filename)
             ts = pyslim.load(filename).simplify()
