@@ -10,8 +10,9 @@ import pickle
 import sys
 import itertools
 from timeit import default_timer as timer
+import pandas as pd
 
-def ac_from_ts(ts, n_pops, N):
+def acs_from_ts(ts, n_pops, N):
     '''
     This function takes a tree sequence,  and returns tuple with a list of allele counts for each subpop and the positions'''
     acs=[]
@@ -23,136 +24,60 @@ def ac_from_ts(ts, n_pops, N):
     pos=np.array([s.position for s in ts.sites()])
     return(acs, pos)
 
-def win_stats_from_ts(ts_path, n_pops, N, L, win_size):
-    #getting the identifier of the treeseq
-    matches = re.match( r'.+RAND_(.+).trees', foname)
+def get_meta(ts_path, meta_path):
+    matches = re.match( r'.+RAND_(.+).trees', ts_path)
     rand_id = matches.groups()[0]
+    files = glob(meta_path+rand_id+"_jid_*.info") #there should be only one match
+    meta_fname = files[0]
+    meta = pd.read_csv(meta_fname, sep="\t")
+    N = int(meta['N1'])
+    L = int(meta['L'])
+    return(rand_id, N, L)
+
+def win_stats_from_ts(ts_path, rand_id, n_pops, N, L, win_size):
+    #getting the identifier of the treeseq
     #getting all pairwise combinations of pops
     x = np.arange(n_pops)
     combs = list(itertools.combinations(x, 2))
     ts = pyslim.load(ts_path).simplify()
     s1 = timer()
-    acs, pos = ac_from_ts(ts, n_pops, N)
+    acs, pos = acs_from_ts(ts, n_pops, N)
+    tmp = pd.DataFrame()
     print("Calculating single population stats...", flush=True)
     for j in range(n_pops):
         pi, windows, n_bases, counts = allel.windowed_diversity(pos, acs[j], size=win_size,   start=1, stop=L)
         D, windows, counts = allel.windowed_tajima_d(pos, acs[j], size=win_size, start=1,     stop=L)
-
-def win_pi_sims(path, neut_mut, n_pops, n_sims, T, win_size, L, N):
-    foname = os.path.basename(path[:-1])
-    print(("Base filename:"+foname), flush=True)
-    x = np.arange(n_pops)
-    combs = list(itertools.combinations(x, 2))
-    pis=np.zeros((len(T),n_sims,n_pops,int(L/win_size)))
-    div=np.zeros((len(T), n_sims,len(combs),int(L/win_size)))
-    fst=np.zeros((len(T), n_sims,len(combs),int(L/win_size)))
-    tajd=np.zeros((len(T),n_sims,n_pops,int(L/win_size)))
-    for t in range(len(T)):
-        for i in range(n_sims):
-            files = glob(path+str(T[t])+"N_sim_"+str(i)+"_RAND_*[0-9]_overlaid.trees")
-            print(files)
-    cs, pos = ac_from_ts(ts, n_pops, N)        assert (len(files) == 1), str(len(files))+" file(s) found with glob T: "+str(T[t])+" sim:"+str(i)
-            filename= files[0]
-            print(filename)
-            ts = pyslim.load(filename).simplify()
-            #print(("Pi0: ", ts.pairwise_diversity(samples=ts.samples(population=0)),"Pi1: ", ts.pairwise_diversity(samples=ts.samples(population=1))), flush=True)
-            s1 = timer()
-            acs, pos = ac_from_ts(ts, n_pops, N)
-            for j in range(n_pops):
-                pi, windows, n_bases, counts = allel.windowed_diversity(pos, acs[j], size=win_size, start=1, stop=L)
-                pis[t,i,j,:] = pi
-                D, windows, counts = allel.windowed_tajima_d(pos, acs[j], size=win_size, start=1, stop=L)
-                tajd[t,i,j,:] = D
-            s2 = timer()
-            print(("Calculating windowed Pi/TajD... Time elapsed (min):"+str(round((s2-s1)/60,3))), flush=True)
-            s1=timer()
-            for k in range(len(combs)):
-                dxy, windows, n_bases, counts = allel.windowed_divergence(pos, acs[combs[k][0]], acs[combs[k][1]], size=win_size, start=1, stop=L)
-                div[t,i,k,:] = dxy
-                fstat, windows, counts = allel.windowed_hudson_fst(pos, acs[combs[k][0]], acs[combs[k][1]], size=win_size, start=1, stop=L)
-                fst[t,i,k,:] = fstat
-            s2 = timer()
-            print(("Calculating windowed Dxy and Fst... Time elapsed (min):"+str(round((s2-s1)/60,3))), flush=True)
-
-    s1 = timer()
-    print((pis.shape), flush=True)
-    print((tajd.shape), flush=True)
-    print((div.shape), flush=True)
-    output = open(path+foname+'_pis.pkl', 'wb')
-    pickle.dump(pis, output)
-    output.close()
-    output = open(path+foname+'_tajd.pkl', 'wb')
-    pickle.dump(tajd, output)
-    output.close()
-    output = open(path+foname+'_div.pkl', 'wb')
-    pickle.dump(div, output)
-    output.close()
-    output = open(path+foname+'_fst.pkl', 'wb')
-    pickle.dump(fst, output)
-    output.close()
-
-    if (0):
-        plt.subplot(2, 1, 1)
-        plt.plot(np.transpose(pis[0,0,:]), "-")
-        plt.title('0N after split')
-        plt.ylabel('Pi')
-        plt.subplot(2, 1, 2)
-        plt.plot(np.transpose(pis[9,0,:]), "-")
-        plt.title('10N after split')
-        plt.xlabel('Window')
-        plt.ylabel('Pi')
-        plt.tight_layout()
-        plt.savefig(path+foname+'_landscape.pdf')
-        plt.close()
-
-
+        if (tmp.empty):
+            tmp['start'] = windows[:,0]
+            tmp['end'] = windows[:,1]
+            tmp['n_acc'] = n_bases
+        tmp['pi_p'+str(j)] = pi
+        tmp['tajd_p'+str(j)] = D
     s2 = timer()
-    print(("Saving stats and plots to file... Time elapsed (min):"+str(round((s2-s1)/60,3))), flush=True)
+    print(("Calculated single pop stats... Time elapsed (min):"+str(round((s2-s1)/60,    3))), flush=True)
+    s1=timer()
+    for k in range(len(combs)):
+        dxy, windows, n_bases, counts = allel.windowed_divergence(pos, acs[combs[k][0]],      acs[combs[k][1]], size=win_size, start=1, stop=L)
+        tmp['dxy_p'+str(combs[k][0])+'_'+str(combs[k][1])] = dxy
+        #fstat, windows, counts = allel.windowed_hudson_fst(pos, acs[combs[k][0]],             acs[combs[k][1]], size=win_size, start=1, stop=L)
+    s2 = timer()
+    print(("Calculated windowed Dxy... Time elapsed (min):"+str(round((s2-s1)/60,    3))), flush=True)
+    return(tmp)
 
-#sys.stdout.flush()
+out_path = "/home/murillor/projects/greatapes_sims/output/"
+meta_path = "/home/murillor/projects/greatapes_sims/meta/sims/"
+prefix = "neut_split_mut"
 
-s1 = timer()
-path = sys.argv[1]
-win_size=int(sys.argv[2])
-L=int(sys.argv[3])
-n_sims=int(sys.argv[4])
+tree_files = glob(out_path+prefix+"_RAND_*.trees")
+for ts_path in tree_files:
+    N, L = get_meta(ts_path, meta_path)
+    cmd = "sbatch "+rand+".sh"
+    out = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
+    if (out.returncode != 0):
+        print("sh failed")
+        print(out)
 
-neut_mut = 1e-8
-n_pops = 2
-N=10000
 
-#T=np.arange(0.1,1.1,step=0.1)
-#T=np.concatenate([T,np.array([2.0])])
-#T=np.around(T, 1)
-#T=np.arange(0,11,step=1)
-T=np.concatenate([np.arange(0,2.2,step=0.4), np.arange(4,11,step=2)])
-T = [float("%.1f"%t) for t in T]
+sys.stdout.flush()
 
-s2 = timer()
-print(("Initializing... Time elapsed (min):"+str(round((s2-s1)/60,3))), flush=True)
-
-win_pi_sims(path, neut_mut, n_pops, n_sims, T, win_size, L, N)
-
-"""
-
-path = "/Users/murillo/Drive/phd/w19/rotation/trees/"
-folders = glob("N_*_mu_*_L0_*")
-paths = [path+folders[i]+"/" for i in range(len(folders))]
-
-total_mut = 1e-8
-n_pops = 2
-n_sims=1
-win_size = 500000
-T=np.arange(1,11,step=1)
-
-for i in range(len(paths)):
-    path = paths[i]
-    foname = os.path.basename(path[:-1])
-    print((foname), flush=True)
-    matches = re.match( r'N_(\d+)_mu_(.*)_r_(.*)_deff_(\d+)_L_(\d+)_L0_(.+)_L1_(\d+)', foname)
-    N, mu, r, deff, L, L0, L1 = matches.groups()
-    del_mut = mu
-    win_pi_sims(path, neut_mut, del_mut, n_pops, n_sims, T, win_size)"""
-
-#python3 mimulus_win_pi.py /Users/murillo/Drive/phd/w19/rotation/trees/N_10000_mu_0_r_2e-08_deff_0_L_20000000_L0_0_L1_0_m_0/ 500000 1
 
