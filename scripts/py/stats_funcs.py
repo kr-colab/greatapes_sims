@@ -16,11 +16,14 @@ def acs_from_ts(ts, n_pops, N):
     '''
     This function takes a tree sequence,  and returns tuple with a list of allele counts for each subpop and the positions'''
     acs=[]
+    print("entrei nos acs")
     hap = allel.HaplotypeArray(ts.genotype_matrix())
     geno = hap.to_genotypes(ploidy=2)
+    print("fiz hap and geno matrix")
     for i in range(n_pops):
         subpop_indexes = list(np.arange(i*N,(i+1)*N))
         acs.append(geno.count_alleles(subpop=subpop_indexes))
+    print("ja separei os acs per subpop")
     pos=np.array([s.position for s in ts.sites()])
     return(acs, pos)
 
@@ -37,10 +40,12 @@ def get_meta(ts_path, meta_path):
 def win_stats_from_ts(ts_path, rand_id, n_pops, N, L, win_size):
     #getting the identifier of the treeseq
     #getting all pairwise combinations of pops
+    print("entrei")
     x = np.arange(n_pops)
     combs = list(itertools.combinations(x, 2))
     ts = pyslim.load(ts_path).simplify()
     s1 = timer()
+    print("vou pegar os acs")
     acs, pos = acs_from_ts(ts, n_pops, N)
     tmp = pd.DataFrame()
     print("Calculating single population stats...", flush=True)
@@ -64,15 +69,15 @@ def win_stats_from_ts(ts_path, rand_id, n_pops, N, L, win_size):
     print(("Calculated windowed Dxy... Time elapsed (min):"+str(round((s2-s1)/60,    3))), flush=True)
     return(tmp)
 
-def write_sh(out_path, meta_path, script_path, ts_path, win_size, n_pops, prefix, time = "8:00:00", mem = "4G"):
+def write_sh(out_path, meta_path, script_path, ts_path, win_size, n_pops, prefix, time = "8:00:00", mem = "8G"):
     matches = re.match( r'.+RAND_(.+).trees', ts_path)
     rand_id = matches.groups()[0]
     sh_name = rand_id+".sh"
     with open(sh_name, "w") as fh:
         print("#!/bin/bash", file=fh)
         #SBATCH env variables
-        print("#SBATCH --account=kernlab\n#SBATCH --partition=kern\n#SBATCH --job-name="+prefix+"\n#SBATCH --time="+time+"\n#SBATCH --mem "+mem+"\n#SBATCH --open-mode=append"+"\n#SBATCH --output="+meta_path+rand+".info"+"\n#SBATCH --error="+meta_path+rand+".info", file=fh)
-            #modules to load on talapas
-            print("\nmodule use /projects/apps/shared/modulefiles/\nmodule load python3 tskit SLiM\n", file=fh)
+        print("#SBATCH --account=kernlab\n#SBATCH --partition=kern\n#SBATCH --job-name="+prefix+"\n#SBATCH --time="+time+"\n#SBATCH --mem "+mem+"\n#SBATCH --open-mode=append"+"\n#SBATCH --output="+meta_path+rand_id+".info"+"\n#SBATCH --error="+meta_path+rand_id+".info", file=fh)
+        #modules to load on talapas
+        print("\nmodule use /projects/apps/shared/modulefiles/\nmodule load python3 tskit SLiM\n", file=fh)
         #slim command
-        print("python "+script_path+" "+out_path+" "+meta_path+" "+ts_path+" "+win_size+" "+n_pops+" "+prefix+" "+, file=fh)
+        print("python "+script_path+" "+out_path+" "+meta_path+" "+ts_path+" "+str(win_size)+" "+str(n_pops)+" "+prefix, file=fh)
