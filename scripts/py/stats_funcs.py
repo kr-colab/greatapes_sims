@@ -69,7 +69,7 @@ def win_stats_from_ts(ts_path, rand_id, n_pops, N, L, win_size):
     print(("Calculated windowed Dxy... Time elapsed (min):"+str(round((s2-s1)/60,    3))), flush=True)
     return(tmp)
 
-def write_sh(out_path, meta_path, script_path, ts_path, win_size, n_pops, prefix, time = "8:00:00", mem = "8G"):
+def write_sh(out_path, meta_path, script_path, ts_path, win_size, n_pops, prefix, time = "48:00:00", mem = "64G"):
     matches = re.match( r'.+RAND_(.+).trees', ts_path)
     rand_id = matches.groups()[0]
     sh_name = rand_id+".sh"

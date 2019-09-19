@@ -26,7 +26,7 @@ for i in range(len(gens)):
         var_names = ["N1","N2", "path_burnin", "gens", "mu", "r", "L", "RAND"]
         values = ["10000","10000", burnin_path, str(gens[i]), "0","1.5e-8","50818468",rand]
 
-        write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, mutate, prefix_mut)
+        write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, mutate, prefix_mut, time="48:00:00")
         if (slurm):
             cmd = "sbatch "+rand+".sh"
         else:
