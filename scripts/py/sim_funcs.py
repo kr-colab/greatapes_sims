@@ -8,10 +8,11 @@ def id_generator(size=10, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
 
 def write_meta(meta_path, var_names, values, rand, jid):
-    with open(meta_path+rand+"_jid_"+jid+".info", "w+") as fh:
+    with open(meta_path+rand+".meta", "w+") as fh:
         print('\t'.join(var_names), file=fh)
         print('\t'.join(values), file=fh)
-        #print("#################################", file=fh)
+    with open(meta_path+"rand_jid.txt", "a") as fh:
+        print(rand+"\t"+jid, file=fh)
 
 def write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, mutate=0, prefix_mut="", slurm=True, time = "48:00:00", mem = "16G"):
     outfile = out_path+prefix+"_RAND_"+values[var_names.index("RAND")]+".trees"
