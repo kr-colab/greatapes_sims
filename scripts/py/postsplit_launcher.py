@@ -15,9 +15,11 @@ script_path = "/home/murillor/projects/greatapes_sims/scripts/slim/neutral_split
 burnin_path = "/home/murillor/projects/greatapes_sims/output/neut_burn_unmut_RAND_R3MVZ1633Q.trees"
 prefix = "neut_split"
 prefix_mut = "neut_split_mut"
-mutate=1.4e-8
+mutate=1.66e-8 #rate fromhttps://www.sciencedirect.com/science/article/pii/S0002929715004085?via%3Dihub
 
-tb = pd.read_csv(table_path)
+params = pd.read_csv(table_path)
+params.drop_duplicates(['real_gens', 'real_pop_size_anc', 'real_pop_size1', 'real_pop_size2'], inplace=True) #making sure to not do more sims than necessary
+params
 gens = tb.gens.unique()
 
 for i in range(len(gens)):
