@@ -13,7 +13,7 @@ def write_meta(meta_path, var_names, values, rand, jid):
         print('\t'.join(values), file=fh)
     with open(meta_path+"rand_jid.txt", "a") as fh:
         both = [str(n)+"="+str(v) for n,v in zip(var_names, values)]
-        print(rand+"\t"+jid+"\t"+"\t".join(both), file=fh)
+        print(rand+"\t"+jid+"\t"+";".join(both), file=fh)
 
 def write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, mutate=0, prefix_mut="", slurm=True, time = "48:00:00", mem = "16G"):
     outfile = out_path+prefix+"_RAND_"+values[var_names.index("RAND")]+".trees"
