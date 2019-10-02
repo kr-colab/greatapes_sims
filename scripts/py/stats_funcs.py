@@ -30,8 +30,9 @@ def acs_from_ts(ts, n_pops, N):
 def get_meta(ts_path, meta_path):
     matches = re.match( r'.+RAND_(.+).trees', ts_path)
     rand_id = matches.groups()[0]
-    files = glob(meta_path+rand_id+"_jid_*.info") #there should be only one match
-    meta_fname = files[0]
+    #files = glob(meta_path+rand_id+"_jid_*.info") #there should be only one match
+    #meta_fname = files[0]
+    meta_fname = meta_path+rand_id+".meta"
     meta = pd.read_csv(meta_fname, sep="\t")
     N = int(meta['N1'])
     L = int(meta['L'])
@@ -72,7 +73,7 @@ def win_stats_from_ts(ts_path, rand_id, n_pops, N, L, win_size):
 def write_sh(out_path, meta_path, script_path, ts_path, win_size, n_pops, prefix, time = "48:00:00", mem = "64G"):
     matches = re.match( r'.+RAND_(.+).trees', ts_path)
     rand_id = matches.groups()[0]
-    sh_name = rand_id+".sh"
+    sh_name = rand_id+"_"+str(win_size)+".sh"
     with open(sh_name, "w") as fh:
         print("#!/bin/bash", file=fh)
         #SBATCH env variables

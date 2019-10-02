@@ -11,13 +11,13 @@ out_path = "/home/murillor/projects/greatapes_sims/output/"
 script_path = "/home/murillor/projects/greatapes_sims/scripts/slim/neutral_burnin_greatapes.slim"
 prefix = "neut_burn_unmut"
 prefix_mut = "neut_burn_mut"
-mutate=1
+mutate=0
 rand = id_generator()
 
 var_names = ["ancN", "mu", "r", "L", "RAND"]
-values = ["10000","0","1.5e-8","50818468",rand]
+values = ["10000","0","1.5e-8","200000000",rand]
 
-write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, 1e-9, prefix_mut, slurm)
+write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, 1e-9, prefix_mut, slurm, time = "60:00:00", mem = "16G")
 if (slurm):
     cmd = "sbatch "+rand+".sh"
 else:
