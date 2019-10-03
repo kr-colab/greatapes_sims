@@ -1,0 +1,80 @@
+// neutral two population split, using burning from treeseq
+initialize() {
+	if(0) {
+		defineConstant("path","/tmp/");
+		defineConstant("path_burnin","/tmp/neutral_N_100_RAND_123.trees");
+		defineConstant("prefix", "neutral");
+		//defineConstant("outfile", path+prefix+"_N1_"+N1+"_N2_"+N2+"_RAND_"+RAND+".trees")
+		//defineConstant("path","/Users/murillo/Drive/phd/w19/rotation/trees/");
+		defineConstant("mu", 1e-9);
+		defineConstant("r", 1.5e-8);
+		defineConstant("L", 5e7); // total chromosome length
+		defineConstant("RAND", 123); // random identifier
+	}
+
+	initializeTreeSeq();
+
+	initializeMutationRate(asFloat(mu));
+	//neutral mutations
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeRecombinationRate(asFloat(r), asInteger(L)-1);
+	initializeGenomicElementType("g1", asInteger("1"), 1.0);
+	initializeGenomicElement(g1, 0, asInteger(L)-1);
+}
+
+// create a population of N individuals
+//schedule sampling times depending on N
+1 late() {
+	sim.readFromPopulationFile(path_burnin);
+	sim.addSubpopSplit(2, 47059, 1); //gor+homo lin
+	p1.setSubpopulationSize(19231); //orangs
+}
+
+// gor from chimp+hum split
+275950 {
+	sim.addSubpopSplit(3, 20132, 2); //gor gor
+	p2.setSubpopulationSize(50869); //bon+chimp+hum
+}
+
+// bonobo+chimp from hum split
+368650 {
+	sim.addSubpopSplit(4, 7672, 2); //hum
+	p2.setSubpopulationSize(37483); //bon+chimp
+}
+
+// bonobo+chimp split
+513350 {
+	sim.addSubpopSplit(5, 10600, 2); //chimp
+	p2.setSubpopulationSize(5400); //bon
+}
+
+// orangs split
+538247 {
+	sim.addSubpopSplit(6, 10600, 1); //born
+	p1.setSubpopulationSize(16731); //sumat
+}
+
+//wes+nig from eas+cen chimps
+539780 {
+	sim.addSubpopSplit(7, 10100, 5); //wes_nig
+	p5.setSubpopulationSize(12415); //eas+cent
+}
+
+
+//wes+nig split
+547500 {
+	sim.addSubpopSplit(8, 8800, 7); //nig
+	p7.setSubpopulationSize(5100); //wes
+}
+
+//eas+cen split
+549900 {
+	sim.addSubpopSplit(9, 12400, 5); //eas
+	p5.setSubpopulationSize(30000); //cen
+}
+
+// wait gens after split
+556920 late() {
+	sim.treeSeqOutput(outfile);
+	catn(outfile);
+}
