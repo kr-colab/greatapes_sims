@@ -82,3 +82,4 @@ def write_sh(out_path, meta_path, script_path, ts_path, win_size, n_pops, prefix
         print("\nmodule use /projects/apps/shared/modulefiles/\nmodule load python3 tskit SLiM\n", file=fh)
         #slim command
         print("python "+script_path+" "+out_path+" "+meta_path+" "+ts_path+" "+str(win_size)+" "+str(n_pops)+" "+prefix, file=fh)
+        print("seff $SLURM_JOBID", file=fh)
