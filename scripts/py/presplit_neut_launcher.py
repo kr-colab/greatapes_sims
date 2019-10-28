@@ -22,11 +22,12 @@ params = pd.read_csv(table_path)
 anc_list = params.real_pop_size_anc.unique()
 anc_list = np.append(anc_list, [1000, 10000])
 for ancN in anc_list:
+    mem = math.ceil((ancN/700))+2
     rand = id_generator()
     var_names = ["ancN", "mu", "recfile", "exonfile", "L", "RAND", "posprop", "poscoef", "delprop", "delcoef"]
     values = [str(ancN),"0",rec_file,ex_file,"132000000",rand, "0", "0", "0", "0"]
 
-    write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, time = "15-00:00:00", mem = "16G")
+    write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, time = "15-00:00:00", mem = str(mem)+"G")
     if (slurm):
         cmd = "sbatch "+rand+".sh"
     else:
