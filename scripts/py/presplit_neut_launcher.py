@@ -1,5 +1,6 @@
 import subprocess
 import os
+import math
 from sim_funcs import *
 import numpy as np
 import pandas as pd
@@ -21,13 +22,14 @@ mutate=0
 params = pd.read_csv(table_path)
 anc_list = params.real_pop_size_anc.unique()
 anc_list = np.append(anc_list, [1000, 10000])
+anc_list = anc_list[anc_list>50000]
 for ancN in anc_list:
-    mem = math.ceil((ancN/700))+2
+    mem = math.ceil((ancN/600))+2
+    days = math.ceil(ancN/30000)
     rand = id_generator()
     var_names = ["ancN", "mu", "recfile", "exonfile", "L", "RAND", "posprop", "poscoef", "delprop", "delcoef"]
     values = [str(ancN),"0",rec_file,ex_file,"132000000",rand, "0", "0", "0", "0"]
-
-    write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, time = "15-00:00:00", mem = str(mem)+"G")
+    write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, time = str(days)+"-00:00:00", mem = str(mem)+"G")
     if (slurm):
         cmd = "sbatch "+rand+".sh"
     else:

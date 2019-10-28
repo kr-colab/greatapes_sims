@@ -33,5 +33,6 @@ def write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, ra
         print("slim -m -t "+var_str+" "+script_path, file=fh)
         if(mutate):
             print("python overlay.py "+outfile+" "+out_mut+" "+str(mutate), file=fh)
+        print("sleep 5m",file=fh)
         print("seff $SLURM_JOBID", file=fh)
 
