@@ -11,37 +11,34 @@ import sys
 import itertools
 from timeit import default_timer as timer
 
-def remove_mutations(ts, start, end, proportion):
+def remove_mutations(ts, starts, ends, prop):
     '''
     This function will return a new tree sequence the same as the input,
-    but after removing each non-SLiM mutation within regions specified in lists
-    start and end with probability `proportion`, independently. So then, if we
-:/name
+    but after removing each non-SLiM mutation within regions specified in 
+    lists of start and end positions with probability `proportion`, independently. 
+    So then, if we want to add neutral mutations with rate 1.0e-8 within the regions 
+    and 0.7e-8 outside the regions, we could do
+      ts = pyslim.load("my.trees")
+      first_mut_ts = msprime.mutate(ts, rate=1e-8)
+      mut_ts = remove_mutations(first_mut_ts, start, end, 0.3)
+    :param float proportion: The proportion of mutations to remove.
     '''
-    new_tables = ts.dump_tables()
-    new_tables.mutations.clear()
-    mutation_map = [-1 for _ in range(ts.num_mutations)]
-    for j, mut in enumerate(ts.mutations()):
-        keep_mutation = True
-        for i in range(len(start)):
-            left = start[i]
-            right = end[i]
-            assert(left < right)
-            if i > 0:
-                assert(end[i - 1] <= left)
-            if mut.position >= left and mut.position < right and len(mut.metadata) == 0:
-                keep_mutation = (random.uniform(0, 1) > proportion)
-        if keep_mutation:
-            mutation_map[j] = new_tables.mutations.num_rows
-            if mut.parent < 0:
-                new_parent = -1
-            else:
-                new_parent = mutation_map[mut.parent]
-            new_tables.mutations.add_row(site = mut.site, node = mut.node,
-                    derived_state = mut.derived_state,
-                    parent = new_parent,
-                    metadata = mut.metadata)
-    return new_tables.tree_sequence()
+    pos = ts.tables.sites.position #getting the positions of all sites
+    is_msp = (np.diff(ts.tables.mutations.metadata_offset) == 0) #getting which mutations are from msprime
+    #but we want to know which sites are from msprime
+    is_msp_site = np.repeat(False, ts.num_sites)
+    is_msp_site[ts.tables.mutations.site] = is_msp
+    #finding which sites are inside the regions
+    breaks=np.concatenate(([-1], starts, ends))
+    breaks.sort()
+    #np.search sorted is going to return even numbers if the pos is inside one of the regions
+    in_regions = np.searchsorted(breaks,pos,"right")%2 == 0
+    removable_sites = np.where(np.logical_and(in_regions, is_msp_site))[0]
+    #find sites to remove with probability prop
+    remove = np.where(np.random.binomial(1,prop,len(removable_sites))==1)[0]
+    new_table = ts.tables
+    new_table.delete_sites(remove)
+    return(new_table.tree_sequence())
 
 def overlay_varmut(ts_path, ts_path_mut, neut_mut, intervals = False):
     s1=timer()
