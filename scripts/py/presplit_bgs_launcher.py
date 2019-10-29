@@ -27,7 +27,7 @@ for ancN in anc_list:
     days = math.ceil(ancN/30000)
     rand = id_generator()
     var_names = ["ancN", "mu", "recfile", "exonfile", "L", "RAND", "posprop", "poscoef", "delprop", "delcoef"]
-    values = [str(ancN),"3e-9",rec_file,ex_file,"132000000",rand, "0", "0", "1", str(-50/ancN)]
+    values = [str(ancN),"3e-9",rec_file,ex_file,"132000000",rand, "0", "0", "1", "-0.03"]
     write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, time = str(days)+"-00:00:00", mem = str(mem)+"G")
     if (slurm):
         cmd = "sbatch "+rand+".sh"
