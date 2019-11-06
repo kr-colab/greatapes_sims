@@ -56,6 +56,15 @@ initialize() {
     sim.rescheduleScriptBlock(s1, generations=seq(1,4)*asInteger(ancN));
 }
 
+5000: {
+    if (sim.generation % 5000 == 0) {
+       catn("You got to generation "+sim.generation);
+    }
+    if (sim.generation % 20000 == 0) {
+        catn("Saving tree generation "+ sim.generation);
+        sim.treeSeqOutput(outfile+asString(sim.generation),simplify=F);
+    }
+}
 
 s0 10 late() {
 	sim.treeSeqOutput(outfile);
