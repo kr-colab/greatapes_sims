@@ -13,13 +13,10 @@ initialize() {
 		defineConstant("RAND", 123); // random identifier
 		defineConstant("recfile", "~/Desktop/chr12_rec_rate_hg18.tsv");
 		defineConstant("exonfile", "~/Desktop/chr12_exons_hg18.tsv");
-        defineConstant("outfile","out.trees");
+      defineConstant("outfile","out.trees");
 	}
-    if (siminterval != "") {
-        initializeTreeSeq(simplificationInterval=asInteger(siminterval));
-    } else {
-        initializeTreeSeq();
-    }
+
+	initializeTreeSeq(simplificationInterval=asInteger(siminterval));
 	initializeMutationRate(asFloat(mu));
 	//del mutations
 	initializeMutationType("m1", 0.5, "g", asFloat(delcoef), 0.16); //shape per Castellano et al 2019 Genetics
@@ -51,19 +48,18 @@ initialize() {
 	
 }
 
-// create a population of N individuals
-//schedule sampling times depending on N
 1 {
-	sim.addSubpop("p1", asInteger(ancN));
-	sim.rescheduleScriptBlock(s0, 5*asInteger(ancN), 5*asInteger(ancN));
-    sim.rescheduleScriptBlock(s1, generations=seq(3,4)*asInteger(ancN));
+    sim.readFromPopulationFile("/gpfs/projects/kernlab/murillor/greatapes_sims/output/neut_presplit_RAND_U4GKH9MZQL.trees160000");
+    sim.rescheduleScriptBlock(s0, 5*asInteger(ancN), 5*asInteger(ancN));
+    catn("You succesfulyl loaded!");
 }
 
-10000: {
-    if (sim.generation % 10000 == 0) {
+
+5000: {
+    if (sim.generation % 5000 == 0) {
        catn("You got to generation "+sim.generation);
     }
-    if (sim.generation % 50000 == 0) {
+    if (sim.generation % 20000 == 0) {
         catn("Saving tree generation "+ sim.generation);
         sim.treeSeqOutput(outfile+asString(sim.generation),simplify=F);
     }
