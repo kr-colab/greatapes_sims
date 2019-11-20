@@ -1,0 +1,9 @@
+#!/bin/bash
+#SBATCH --partition=kern
+#SBATCH --job-name=stats_ts
+#SBATCH --time=00:01:00
+#SBATCH --mem 1G
+#SBATCH --output=stats_ts.out         ### File in which to store job output
+#SBATCH --error=stats_ts.err          ### File in which to store job error messages
+
+echo "testeee${1}"
