@@ -46,7 +46,7 @@ initialize() {
 2 {
     sim.rescheduleScriptBlock(s0, generations=sim.generation+asInteger(gens));
     //schedule sampling after gens
-    sim.rescheduleScriptBlock(s1, generations=sim.generation+asInteger(ceil(c(0.25,0.5,0.75)*asInteger(gen))));
+    sim.rescheduleScriptBlock(s1, generations=sim.generation+asInteger(ceil(c(0.2,0.4,0.6,0.8)*asInteger(gen))));
 }
 
 10000: {
