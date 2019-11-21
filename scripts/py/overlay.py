@@ -14,9 +14,9 @@ from timeit import default_timer as timer
 def remove_mutations(ts, starts, ends, prop):
     '''
     This function will return a new tree sequence the same as the input,
-    but after removing each non-SLiM mutation within regions specified in 
-    lists of start and end positions with probability `proportion`, independently. 
-    So then, if we want to add neutral mutations with rate 1.0e-8 within the regions 
+    but after removing each non-SLiM mutation within regions specified in
+    lists of start and end positions with probability `proportion`, independently.
+    So then, if we want to add neutral mutations with rate 1.0e-8 within the regions
     and 0.7e-8 outside the regions, we could do
       ts = pyslim.load("my.trees")
       first_mut_ts = msprime.mutate(ts, rate=1e-8)
@@ -40,28 +40,28 @@ def remove_mutations(ts, starts, ends, prop):
     new_table.delete_sites(remove)
     return(new_table.tree_sequence())
 
-def overlay_varmut(ts_path, ts_path_mut, neut_mut, intervals = False):
+
+
+def overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN, rec_hap_path, ex_file_path, intervals = False):
     s1=timer()
-    ts_slim = pyslim.load(ts_path).simplify()
-    ts_mut = msprime.mutate(ts_slim, neut_mut, keep=True)
-    print("Mutated", ts_path, "in msprime...", flush=True)
-    #start, end, del_mut = extract_meta(fpath, gene_info, type)
-    '''if del_mut > 0:
-        s1=timer()
-        ts = remove_mutations(ts_mut, start, end, del_mut/neut_mut)
-        s2 = timer()
-        print(("Removed extra mutations in genic regions from", fpath, "... Time elapsed (min):"+str(round((s2-s1)/60,3))), flush=True)
-    else:
-        ts = ts_mut
-    s1=timer()'''
-    print(ts_path_mut)
-    ts_mut.dump(ts_path_mut)
+    ts_slim = pyslim.load(in_ts_path)
+    if recapN > 0:
+        recomb_map = msprime.RecombinationMap.read_hapmap(rec_hap_path)
+        ts_slim = ts_slim.recapitate(recombination_map=recomb_map, Ne=recapN)
+        print("Recapitated", ts_path, "with pyslim...", flush=True)
+    ts_mut = msprime.mutate(ts_slim, mut_rate, keep=True)
+    if ex_file_path:
+    print("Mutated", in_ts_path, "in msprime...", flush=True)
+    ts_mut.dump(out_ts_path)
     s2 = timer()
-    print(("Dumped overlaid trees to file", ts_path_mut, "... Time elapsed (min):"+str(round((s2-s1)/60,3))), flush=True)
+    recap_message = "" if recap == "" else " and recapped"
+    print(("Dumped overlaid"+recap_message+" trees to file", ts_path_mut, "... Time elapsed (min):"+str(round((s2-s1)/60,3))), flush=True)
 
-ts_path = sys.argv[1]
-ts_path_mut = sys.argv[2]
-neut_mut = float(sys.argv[3])
+in_ts_path = sys.argv[1]
+out_ts_path = sys.argv[2]
+mut_rate = float(sys.argv[3])
+recapN = int(sys.argv[4])
+rec_hap_path = sys.argv[5]
+ex_file_path = sys.argv[6]
 
-
-overlay_varmut(ts_path, ts_path_mut, neut_mut)
+overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN, rec_hap_path)
