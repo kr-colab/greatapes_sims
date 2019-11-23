@@ -10,7 +10,6 @@ initialize() {
     initializeMutationType("m1", 0.5, "g", asFloat(delcoef), 0.16); //shape per Castellano et al 2019 Genetics
     initializeMutationType("m2", 0.5, "e", asFloat(poscoef));
     initializeGenomicElementType("g1", c(m1,m2), c(asFloat(delprop),asFloat(posprop)));	
-	initializeGenomicElement(g1, 0, asInteger(L)-1);
     f = readFile(exonfile);
     for (line in f) {
             coord = asInteger(strsplit(line[0], "\t")[1:2]);
