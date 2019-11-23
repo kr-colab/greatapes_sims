@@ -22,7 +22,7 @@ del_mut = 0.5*mut_rate
 params = pd.read_csv(table_path)
 anc_list = params.real_pop_size_anc.unique()
 anc_list = np.append(anc_list, [1000, 10000])
-#anc_list = anc_list[anc_list<10001]
+anc_list = anc_list[anc_list>50001]
 for ancN in anc_list:
     mem = math.ceil((ancN/500))+2
     days = math.ceil(ancN/8000)
