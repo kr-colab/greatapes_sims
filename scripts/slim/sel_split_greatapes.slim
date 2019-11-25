@@ -37,12 +37,11 @@ initialize() {
 // create a population of N individuals
 //schedule sampling times depending on N
 1 late() {
-	sim.readFromPopulationFile(path_burnin);
+    //catn(sim.generation);
+    sim.readFromPopulationFile(path_burnin);
 	sim.addSubpopSplit(2, asInteger(N2), 1);
-	p1.setSubpopulationSize(asInteger(N1));
-}
-
-2 {
+	//catn(sim.generation);
+    p1.setSubpopulationSize(asInteger(N1));
     sim.rescheduleScriptBlock(s0, generations=sim.generation+asInteger(gens));
     //schedule sampling after gens
     sim.rescheduleScriptBlock(s1, generations=sim.generation+asInteger(ceil(c(0.2,0.4,0.6,0.8)*asInteger(gens))));
@@ -61,7 +60,8 @@ initialize() {
 // wait gens after split
 s0 10 late() {
 	sim.treeSeqOutput(outfile);
-	catn(outfile);
+	catn("Saving output tree in generation "+sim.generation);
+    catn(outfile);
 }
 
 s1 10 late() {
