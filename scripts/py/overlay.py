@@ -50,7 +50,7 @@ def overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN, rec_hap_path, ex_f
         ts_slim = ts_slim.recapitate(recombination_map=recomb_map, Ne=recapN)
         print("Recapitated", ts_path, "with pyslim...", flush=True)
     ts_mut = msprime.mutate(ts_slim, mut_rate, keep=True)
-    if ex_file_path:
+    #if ex_file_path:
     print("Mutated", in_ts_path, "in msprime...", flush=True)
     ts_mut.dump(out_ts_path)
     s2 = timer()
@@ -62,6 +62,6 @@ out_ts_path = sys.argv[2]
 mut_rate = float(sys.argv[3])
 recapN = int(sys.argv[4])
 rec_hap_path = sys.argv[5]
-ex_file_path = sys.argv[6]
+#ex_file_path = sys.argv[6]
 
 overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN, rec_hap_path)
