@@ -12,6 +12,7 @@ table_path ="/home/murillor/projects/greatapes_sims/meta/param_sims_spp.csv"
 meta_path = "/home/murillor/projects/greatapes_sims/meta/sims/"
 out_path = "/home/murillor/projects/greatapes_sims/output/"
 rec_file = "/home/murillor/projects/greatapes_sims/meta/chr12_rec_rate_hg18.tsv"
+rec_hap_file = "/home/murillor/projects/greatapes_sims/meta/chr12_rec_rate_hg18.hapmap"
 ex_file = "/home/murillor/projects/greatapes_sims/meta/chr12_exons_hg18.tsv"
 
 sims_table = pd.read_csv("/home/murillor/projects/greatapes_sims/meta/sims/rand_jid.txt", sep="\t", header=None, names=["rand", "jobid", "args"])
@@ -42,14 +43,14 @@ for i in range(len(params)):
     N2=params.loc[i,]["real_pop_size2"]
     gens=params.loc[i,]["real_gens"]
     Ntot = N1+N2
-    mem = math.ceil((Ntot/500))+2
-    days = math.ceil(Ntot/20000)
-    siminterval = "" if Ntot < 50000 else math.ceil((50000/Ntot)*1250)
+    mem = math.ceil((Ntot/300))+2
+    days = math.ceil(Ntot/15000)
+    siminterval = "" if Ntot < 40000 else math.ceil((50000/Ntot)*1250)
     for j in range(reps):
         rand = id_generator()
         var_names = ["N1","N2", "path_burnin", "gens", "mu", "recfile", "exonfile", "L","RAND","burnin_rand","posprop", "poscoef", "delprop", "delcoef", "siminterval"]
         values = [str(N1),str(N2), burnin_path+burnin_prefix+"_RAND_"+burnin_rand+".trees", str(int(gens)), "0",rec_file,ex_file,"132000000",rand, burnin_rand, "0","0","0","0", str(siminterval)]
-        write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, mut_rate, prefix_mut,recapN=ancN, rec_hap_map=rec_file, time = str(days)+"-00:00:00", mem = str(mem)+"G")
+        write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, mut_rate, prefix_mut,recapN=ancN, rec_hap_map=rec_hap_file, time = str(days)+"-00:00:00", mem = str(mem)+"G")
         if (slurm):
             cmd = "sbatch "+rand+".sh"
         else:
@@ -63,4 +64,4 @@ for i in range(len(params)):
             jid = out.stdout.decode().strip().split(" ")[-1]
             write_meta(meta_path, var_names, values, rand, jid)
 
-        #os.remove(rand+".sh")
+        os.remove(rand+".sh")
