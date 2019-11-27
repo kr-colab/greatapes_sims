@@ -42,25 +42,25 @@ def remove_mutations(ts, starts, ends, prop):
 
 
 
-def overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN, rec_hap_path, ex_file_path, intervals = False):
+def overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN, rec_hap_path, ex_file_path="", intervals = False):
     s1=timer()
     ts_slim = pyslim.load(in_ts_path)
-    if recapN > 0:
+    if recapN != '':
         recomb_map = msprime.RecombinationMap.read_hapmap(rec_hap_path)
-        ts_slim = ts_slim.recapitate(recombination_map=recomb_map, Ne=recapN)
-        print("Recapitated", ts_path, "with pyslim...", flush=True)
+        ts_slim = ts_slim.recapitate(recombination_map=recomb_map, Ne=int(recapN))
+        print("Recapitated", in_ts_path, "with pyslim...", flush=True)
     ts_mut = msprime.mutate(ts_slim, mut_rate, keep=True)
     #if ex_file_path:
     print("Mutated", in_ts_path, "in msprime...", flush=True)
     ts_mut.dump(out_ts_path)
     s2 = timer()
-    recap_message = "" if recap == "" else " and recapped"
-    print(("Dumped overlaid"+recap_message+" trees to file", ts_path_mut, "... Time elapsed (min):"+str(round((s2-s1)/60,3))), flush=True)
+    recap_message = "" if recapN == "" else " and recapped"
+    print(("Dumped overlaid"+recap_message+" trees to file", out_ts_path, "... Time elapsed (min):"+str(round((s2-s1)/60,3))), flush=True)
 
 in_ts_path = sys.argv[1]
 out_ts_path = sys.argv[2]
 mut_rate = float(sys.argv[3])
-recapN = int(sys.argv[4])
+recapN = sys.argv[4]
 rec_hap_path = sys.argv[5]
 #ex_file_path = sys.argv[6]
 

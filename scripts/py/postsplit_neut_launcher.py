@@ -49,7 +49,7 @@ for i in range(len(params)):
         rand = id_generator()
         var_names = ["N1","N2", "path_burnin", "gens", "mu", "recfile", "exonfile", "L","RAND","burnin_rand","posprop", "poscoef", "delprop", "delcoef", "siminterval"]
         values = [str(N1),str(N2), burnin_path+burnin_prefix+"_RAND_"+burnin_rand+".trees", str(int(gens)), "0",rec_file,ex_file,"132000000",rand, burnin_rand, "0","0","0","0", str(siminterval)]
-        write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, mut_rate, prefix_mut,time = str(days)+"-00:00:00", mem = str(mem)+"G")
+        write_sim_sh(var_names, values, prefix, out_path ,script_path, meta_path, rand, mut_rate, prefix_mut,recapN=ancN, rec_hap_map=rec_file, time = str(days)+"-00:00:00", mem = str(mem)+"G")
         if (slurm):
             cmd = "sbatch "+rand+".sh"
         else:
@@ -63,4 +63,4 @@ for i in range(len(params)):
             jid = out.stdout.decode().strip().split(" ")[-1]
             write_meta(meta_path, var_names, values, rand, jid)
 
-        os.remove(rand+".sh")
+        #os.remove(rand+".sh")
