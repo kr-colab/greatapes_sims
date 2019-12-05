@@ -1,0 +1,83 @@
+initialize() {
+    // this should be used for sims with large populations being run for a long period of time. the number of nodes in the treeseq explodes.
+    if (exists("siminterval")) {
+        if (siminterval =="") {
+            initializeTreeSeq();
+        } else {
+            catn("Setting simplification interval");
+            initializeTreeSeq(simplificationInterval=asInteger(siminterval));       
+        }
+    } else {
+        initializeTreeSeq();
+    }
+    initializeMutationRate(asFloat(mu));
+    //del mutations
+    initializeMutationType("m1", 0.5, "g", asFloat(delcoef), 0.16); //shape per Castellano et al 2019 Genetics
+    initializeMutationType("m2", 0.5, "e", asFloat(poscoef));
+    initializeGenomicElementType("g1", c(m1,m2), c(asFloat(delprop),asFloat(posprop)));	
+    f = readFile(exonfile);
+    for (line in f) {
+            coord = asInteger(strsplit(line[0], "\t")[1:2]);
+            // just in case my file goes for longer than the stretch I want to simulate
+            if (coord[0] > asInteger(L)-1) {
+                    break;
+            }
+            if(coord[1] > asInteger(L)-1) {
+            coord[1] = asInteger(L)-1;
+            }
+            initializeGenomicElement(g1, coord[0], coord[1]);
+    }
+    //reading rec map
+    lines = readFile(recfile);
+    rates=NULL;
+    ends=NULL;
+    for (line in lines) {
+            cols = strsplit(line,"\t");
+            ends = c(ends, asInteger(cols[2])-1);
+            rates = c(rates, asFloat(cols[3]));
+    }
+    // IMPLEMENT CASE WHERE L IS SMALLER THAN REC MAP
+    rates = rates * 1e-8;
+    initializeRecombinationRate(rates,ends);
+}
+
+1 late() {
+    if (exists("path_population_tree")) {
+        if (path_population_tree == "") {
+            sim.addSubpop("p1", asInteger(N));
+        } else {
+            catn("Reading previous sim from file "+path_population_tree);
+            sim.readFromPopulationFile(path_population_tree);
+            p1.setSubpopulationSize(asInteger(N));
+        }
+    } else {
+        sim.addSubpop("p1", asInteger(N));
+    }
+    // rescheduling the time to end simulation
+    sim.rescheduleScriptBlock(s0, generations=sim.generation+asInteger(gens));
+    //schedule sampling in equaly spaced intervals
+    intervals = 1:3/4;
+    sim.rescheduleScriptBlock(s1, generations=sim.generation+ceil(intervals*asInteger(gens)));
+}
+
+10000: {
+    if (sim.generation % 10000 == 0) {
+        catn("You got to generation "+sim.generation);
+    }
+    if (sim.generation % 50000 == 0) {
+        catn("Saving tree generation "+ sim.generation);
+        sim.treeSeqOutput(outfile+asString(sim.generation));
+    }
+}
+
+// final event: save tree seq
+s0 5 late() {
+	sim.treeSeqOutput(outfile);
+	catn("Saving output tree in generation "+sim.generation);
+    catn("To file: "+outfile);
+}
+
+s1 5 late() {
+    catn("Remembering at generation "+sim.generation);
+    sim.treeSeqRememberIndividuals(sim.subpopulations.individuals);
+}
