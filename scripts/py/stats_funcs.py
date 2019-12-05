@@ -12,33 +12,33 @@ import itertools
 from timeit import default_timer as timer
 import pandas as pd
 
-def acs_from_ts(ts, n_pops, N):
+def acs_from_ts(ts, n_pops):
     '''
-    This function takes a tree sequence,  and returns tuple with a list of allele counts for each subpop and the positions'''
+    This function takes a tree sequence, and returns tuple with a list of allele counts for each subpop, and an array of the positions'''
     acs=[]
     print("entrei nos acs")
     hap = allel.HaplotypeArray(ts.genotype_matrix())
     geno = hap.to_genotypes(ploidy=2)
     print("fiz hap and geno matrix")
     for i in range(n_pops):
-        subpop_indexes = list(np.arange(i*N,(i+1)*N))
+        subpop_indexes = ts.samples(population=i)
         acs.append(geno.count_alleles(subpop=subpop_indexes))
     print("ja separei os acs per subpop")
     pos=np.array([s.position for s in ts.sites()])
     return(acs, pos)
 
 def get_meta(ts_path, meta_path):
+    '''
+    This function gets the genome sequence length and the random identifier based on a path to a tree file (ts_path) and the path to the metadata folder.
+    '''
     matches = re.match( r'.+RAND_(.+).trees', ts_path)
     rand_id = matches.groups()[0]
-    #files = glob(meta_path+rand_id+"_jid_*.info") #there should be only one match
-    #meta_fname = files[0]
     meta_fname = meta_path+rand_id+".meta"
     meta = pd.read_csv(meta_fname, sep="\t")
-    N = int(meta['N1'])
     L = int(meta['L'])
-    return(rand_id, N, L)
+    return(rand_id, L)
 
-def win_stats_from_ts(ts_path, rand_id, n_pops, N, L, win_size):
+def win_stats_from_ts(ts_path, rand_id, n_pops, L, win_size):
     #getting the identifier of the treeseq
     #getting all pairwise combinations of pops
     print("entrei")
@@ -47,7 +47,7 @@ def win_stats_from_ts(ts_path, rand_id, n_pops, N, L, win_size):
     ts = pyslim.load(ts_path).simplify()
     s1 = timer()
     print("vou pegar os acs")
-    acs, pos = acs_from_ts(ts, n_pops, N)
+    acs, pos = acs_from_ts(ts, n_pops)
     tmp = pd.DataFrame()
     print("Calculating single population stats...", flush=True)
     for j in range(n_pops):

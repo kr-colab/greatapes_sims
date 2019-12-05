@@ -1,0 +1,20 @@
+edge	parent	ancestral_coding	assumed_mut_rate	node_to_tip_split_kya	age_est_method	edge_age_kya	gen_time	gens	N	N_est_method	notes
+great_apes		20	1.00E-09	11138	coalhmm		20	250178	125089	coalhmm	5N burnin
+orangutans	great_apes	15	1.00E-09	485	psmc	10653	26	409731	19231	psmc
+bornean_orangutan	orangutans	10	1.00E-09			485	26	18654	7692	psmc
+sumatran_orangutan	orangutans	11	1.00E-09			485	26	18654	16731	psmc
+african_apes	great_apes	19	1.00E-09	5619	coalhmm	5519	20	275950	47059	coalhmm
+gorilla	african_apes	14	1.00E-09	150	psmc	5469	19	287842	20921	psmc
+eastern_gorilla	gorilla	7	1.00E-09			150	19	7895	4211	psmc
+western_gorila	gorilla	8	1.00E-09			150	19	7895	20132	psmc
+human_pan	african_apes	18	1.00E-09	3765	coalhmm	1854	20	92700	49556	coalhmm
+humans	human_pan	1	1.00E-09			3765	29	129828	7672	psmc
+pan	human_pan	17	1.00E-09	871	coalhmm	2894	25	115760	37483	coalhmm
+bonobo	pan	6	1.00E-09			871	25	34840	5400	psmc
+chimps	pan	16	1.00E-09	428	psmc	443	25	17720	10600	psmc
+nigerian_western	chimps	12	1.00E-09	235	psmc	193	25	7720	10100	psmc
+eastern_central	chimps	13	1.00E-09	175	psmc	253	25	10120	12415	abc	they say psmc is overestimating divergence, so I used the ABC estimates
+nigerian_chimp	nigerian_western	5	1.00E-09			235	25	9400	8800	psmc
+western_chimp	nigerian_western	3	1.00E-09			235	25	9400	5100	psmc	
+eastern_chimp	eastern_central	4	1.00E-09			175	25	7000	12400	psmc
+central_chimp	eastern_central	2	1.00E-09			175	25	7000	30000	psmc
