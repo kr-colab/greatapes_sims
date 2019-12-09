@@ -37,6 +37,15 @@ initialize() {
             rates = c(rates, asFloat(cols[3]));
     }
     // IMPLEMENT CASE WHERE L IS SMALLER THAN REC MAP
+    if (ends[length(ends)-1] > L-1) {
+        // adding a conditional to make sure rec is at least the first rate
+        if(ends[0] > L-1) {
+            ends[0]=L-1;
+        }
+        rates=rates[ends<L];
+        ends=ends[ends<L];
+        ends[length(ends)-1] = L-1;
+    }
     rates = rates * 1e-8;
     initializeRecombinationRate(rates,ends);
 }
