@@ -92,7 +92,7 @@ rule great_apes_edge:
 #    params:  par_str=par_string_hash["great_apes"]
     params: recipe=recipe_path, out_p = out_path,s=tmp[tmp.edge=="great_apes"].par_string.tolist()
     output: tmp[tmp.edge=="great_apes"].outfile.tolist()
-    shell:  "slim -m -t {params.out_p}{params.s} -d outfile='\"{params.out_p}{output}\"' {params.recipe}"
+    shell:  "slim -m -t {params.s} -d outfile='\"{params.out_p}{output}\"' {params.recipe}"
 
 rule orangutans_edge:
      input: tmp[tmp.edge=="orangutans"].path_population_tree.tolist() 
