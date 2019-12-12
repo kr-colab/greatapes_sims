@@ -1,0 +1,104 @@
+import itertools
+import pandas as pd
+import numpy as np
+import string
+import random
+
+def expand_grid(data_dict):
+    """Create a dataframe from every combination of given values."""
+    rows = itertools.product(*data_dict.values())
+    return pd.DataFrame.from_records(rows, columns=data_dict.keys())
+
+def id_generator(size=15, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
+
+def get_par_string(row, col_names=["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef","posprop", "poscoef", "N", "gens"]):
+    row_values = row.values.astype('str').tolist()
+    return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in                  range(len(col_names))]))
+
+random.seed(101)
+
+edges_path ="/home/murillor/projects/greatapes_sims/meta/edges_meta.tsv"
+meta_path = "/home/murillor/projects/greatapes_sims/meta/sims/"
+out_path = "/home/murillor/projects/greatapes_sims/output/"
+rec_file = "/home/murillor/projects/greatapes_sims/meta/chr12_rec_rate_hg18.tsv"
+ex_file = "/home/murillor/projects/greatapes_sims/meta/chr12_exons_hg18.tsv"
+recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
+
+L=50000
+total_mu = 1.66e-8
+delprops = [0]
+posprops = [0]
+delcoefs = [0]
+poscoefs = [0]
+sel_params = {"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "poscoef":poscoefs}
+#par_names = ["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef","posprop","poscoef", "N", "gens"]
+#par_values = ["", "50000", rec_file, ex_file, "0", "0", "0", "0", "0", "100", "100"]
+#par_string=' '.join(["-d "+par_names[i]+"=\\\""+par_values[i]+"\\\"" for i in range(len(par_names))])
+#print(par_string)
+
+#edges=["great_apes", "organgutans"]
+#outs = [out_path+e+".trees" for e in edges]
+
+# suck up params and hash them
+edges_meta = pd.read_csv(edges_path,sep="\t")
+#edges_meta[["edge","N","gens"]]
+
+
+edges_info = edges_meta[["edge","parent","N","gens"]]
+# make a hash of param strings called param_string_hash
+tmp=pd.DataFrame()
+for i, row in edges_info.iterrows():
+    row=row.to_dict()
+    for key in row:
+        row[key] = [row[key]]
+    row.update(sel_params)
+    tmp = pd.concat([tmp,expand_grid(row)])
+
+both_p = np.logical_and(tmp.posprop>0,tmp.poscoef > 0)
+both_p_zero = np.logical_and(tmp.posprop==0,tmp.poscoef == 0)
+both_d = np.logical_and(tmp.delprop>0,tmp.delcoef < 0)
+both_d_zero = np.logical_and(tmp.delprop==0,tmp.delcoef == 0)
+use_param_comb = np.logical_and(np.logical_or(both_p,both_p_zero),np.logical_or(both_d, both_d_zero))
+tmp = tmp[use_param_comb]
+tmp["L"] = L
+tmp["mu"] = (tmp.posprop+tmp.delprop)*total_mu
+tmp["siminterval"] = np.where(tmp.N>50000,"500","")
+tmp["exonfile"] = ex_file
+tmp["recfile"] = rec_file
+tmp["numid"] = tmp.groupby(["delprop","delcoef","posprop","poscoef"]).grouper.label_info
+rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
+tmp["rand_id"] = rands[tmp["numid"].tolist()]
+tmp["outfile"] = tmp.edge+"_"+tmp.rand_id+".trees"
+assert not tmp.outfile.duplicated().any(), "one of the outfile names is duplicated"
+tmp["path_population_tree"] = ""
+tmp.reset_index(drop=True, inplace=True)
+depend_tree = []
+for i in range(len(tmp)):
+    if tmp.iloc[i].edge=="great_apes":
+        depend_tree.append("")
+    else:
+        parent_df = tmp[np.logical_and(tmp.numid==tmp.iloc[i].numid,tmp.edge==tmp.iloc[i].parent)]
+        depend_tree.append(parent_df.outfile.values[0])
+        assert len(parent_df)==1, "more than one parent"
+tmp["path_population_tree"] = depend_tree
+tmp["par_string"]=tmp[["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef","posprop","poscoef",   "N", "gens"]].apply(get_par_string, axis=1)
+
+rule all:
+    input:  tmp[np.logical_or(tmp.edge=="great_apes",tmp.edge=="orangutans")].outfile.tolist()
+
+rule great_apes_edge:
+    input:  
+#    params:  par_str=par_string_hash["great_apes"]
+    params: recipe=recipe_path, out_p = out_path,s=tmp[tmp.edge=="great_apes"].par_string.tolist()
+    output: tmp[tmp.edge=="great_apes"].outfile.tolist()
+    shell:  "slim -m -t {params.out_p}{params.s} -d outfile='\"{params.out_p}{output}\"' {params.recipe}"
+
+rule orangutans_edge:
+     input: tmp[tmp.edge=="orangutans"].path_population_tree.tolist() 
+     params: par_str=tmp[tmp.edge=="orangutans"].par_string.tolist(), recipe=recipe_path, out_p=out_path
+     output: tmp[tmp.edge=="orangutans"].outfile.tolist()
+     shell:  "slim -m -t {params.par_str} -d path_population_tree='\"{params.out_p}{input}\"' -d outfile='\"{params.out_p}{output}\"'  {params.recipe}"
+
+#rule bornean_orangutan_edge:
+#rule sumatran_orangutan_edge:
