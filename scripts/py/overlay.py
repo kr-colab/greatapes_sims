@@ -16,6 +16,9 @@ def remove_mutations(ts, starts, ends, prop):
     This function will return a new tree sequence the same as the input,
     but after removing each non-SLiM mutation within regions specified in
     lists of start and end positions with probability `proportion`, independently.
+    Do not simplify your tree before running this function, otherwise you will be
+    throwing out more mutations than intended. This is necessary, because you do 
+    not want to throw out any mutations that happened in the recapitation.
     So then, if we want to add neutral mutations with rate 1.0e-8 within the regions
     and 0.7e-8 outside the regions, we could do
       ts = pyslim.load("my.trees")
@@ -24,6 +27,8 @@ def remove_mutations(ts, starts, ends, prop):
     :param float proportion: The proportion of mutations to remove.
     '''
     pos = ts.tables.sites.position #getting the positions of all sites
+    # you don't want to remove mutations that happened in the neutral recapitation period.
+    is_post_recap = ts.tables.nodes.time[ts.tables.mutations.node] < ts.slim_generation 
     is_msp = (np.diff(ts.tables.mutations.metadata_offset) == 0) #getting which mutations are from msprime
     #but we want to know which sites are from msprime
     is_msp_site = np.repeat(False, ts.num_sites)
@@ -33,7 +38,7 @@ def remove_mutations(ts, starts, ends, prop):
     breaks.sort()
     #np.search sorted is going to return even numbers if the pos is inside one of the regions
     in_regions = np.searchsorted(breaks,pos,"right")%2 == 0
-    removable_sites = np.where(np.logical_and(in_regions, is_msp_site))[0]
+    removable_sites = np.where(np.logical_and(np.logical_and(in_regions, is_msp_site), is_post_recap))[0]
     #find sites to remove with probability prop
     remove = np.where(np.random.binomial(1,prop,len(removable_sites))==1)[0]
     new_table = ts.tables
