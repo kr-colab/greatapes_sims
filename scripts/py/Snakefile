@@ -25,7 +25,7 @@ rec_file = "/home/murillor/projects/greatapes_sims/meta/chr12_rec_rate_hg18.tsv"
 ex_file = "/home/murillor/projects/greatapes_sims/meta/chr12_exons_hg18.tsv"
 recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
 
-L=50000
+L=5
 total_mu = 1.66e-8
 delprops = [0]
 posprops = [0]
@@ -46,6 +46,8 @@ edges_meta = pd.read_csv(edges_path,sep="\t")
 
 
 edges_info = edges_meta[["edge","parent","N","gens"]]
+edges_info.N = 100
+edges_info.gens=10
 # make a hash of param strings called param_string_hash
 tmp=pd.DataFrame()
 for i, row in edges_info.iterrows():
@@ -63,7 +65,7 @@ use_param_comb = np.logical_and(np.logical_or(both_p,both_p_zero),np.logical_or(
 tmp = tmp[use_param_comb]
 tmp["L"] = L
 tmp["mu"] = (tmp.posprop+tmp.delprop)*total_mu
-tmp["siminterval"] = np.where(tmp.N>50000,"500","")
+tmp["siminterval"] = np.where(tmp.N>500000,"500","")
 tmp["exonfile"] = ex_file
 tmp["recfile"] = rec_file
 tmp["numid"] = tmp.groupby(["delprop","delcoef","posprop","poscoef"]).grouper.label_info
@@ -83,22 +85,131 @@ for i in range(len(tmp)):
         assert len(parent_df)==1, "more than one parent"
 tmp["path_population_tree"] = depend_tree
 tmp["par_string"]=tmp[["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef","posprop","poscoef",   "N", "gens"]].apply(get_par_string, axis=1)
+tmp.path_population_tree=out_path+tmp.path_population_tree
+tmp.outfile=out_path+tmp.outfile
+
+terminals=list(set(tmp.edge.tolist()) - set(tmp.parent.tolist()))
 
 rule all:
-    input:  tmp[np.logical_or(tmp.edge=="great_apes",tmp.edge=="orangutans")].outfile.tolist()
+    input:  tmp[tmp.edge.isin(terminals)].outfile.tolist()
 
 rule great_apes_edge:
     input:  
-#    params:  par_str=par_string_hash["great_apes"]
-    params: recipe=recipe_path, out_p = out_path,s=tmp[tmp.edge=="great_apes"].par_string.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="great_apes"].par_string.tolist()
     output: tmp[tmp.edge=="great_apes"].outfile.tolist()
-    shell:  "slim -m -t {params.s} -d outfile='\"{params.out_p}{output}\"' {params.recipe}"
-
+    shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+"""
 rule orangutans_edge:
-     input: tmp[tmp.edge=="orangutans"].path_population_tree.tolist() 
-     params: par_str=tmp[tmp.edge=="orangutans"].par_string.tolist(), recipe=recipe_path, out_p=out_path
-     output: tmp[tmp.edge=="orangutans"].outfile.tolist()
-     shell:  "slim -m -t {params.par_str} -d path_population_tree='\"{params.out_p}{input}\"' -d outfile='\"{params.out_p}{output}\"'  {params.recipe}"
+    input: tmp[tmp.edge=="orangutans"].path_population_tree.tolist() 
+    params: par_str=tmp[tmp.edge=="orangutans"].par_string.tolist(), recipe=recipe_path, out_p=out_path
+    output: tmp[tmp.edge=="orangutans"].outfile.tolist()
+    shell:  "slim -m -t {params.par_str} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"'  {params.recipe}"
+"""
+rule orangutans_edge:
+    input: tmp[tmp.edge=="orangutans"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="orangutans"].par_string.tolist()
+    output: tmp[tmp.edge=="orangutans"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
 
-#rule bornean_orangutan_edge:
-#rule sumatran_orangutan_edge:
+rule bornean_orangutan_edge:
+    input: tmp[tmp.edge=="bornean_orangutan"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="bornean_orangutan"].par_string.tolist()
+    output: tmp[tmp.edge=="bornean_orangutan"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule sumatran_orangutan_edge:
+    input: tmp[tmp.edge=="sumatran_orangutan"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="sumatran_orangutan"].par_string.tolist()
+    output: tmp[tmp.edge=="sumatran_orangutan"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule african_apes_edge:
+    input: tmp[tmp.edge=="african_apes"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="african_apes"].par_string.tolist()
+    output: tmp[tmp.edge=="african_apes"].outfile.tolist()
+    shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule gorilla_edge:
+    input: tmp[tmp.edge=="gorilla"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="gorilla"].par_string.tolist()
+    output: tmp[tmp.edge=="gorilla"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule eastern_gorilla_edge:
+    input: tmp[tmp.edge=="eastern_gorilla"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="eastern_gorilla"].par_string.tolist()
+    output: tmp[tmp.edge=="eastern_gorilla"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule western_gorila_edge:
+    input: tmp[tmp.edge=="western_gorila"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="western_gorila"].par_string.tolist()
+    output: tmp[tmp.edge=="western_gorila"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule human_pan_edge:
+    input: tmp[tmp.edge=="human_pan"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="human_pan"].par_string.tolist()
+    output: tmp[tmp.edge=="human_pan"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule humans_edge:
+    input: tmp[tmp.edge=="humans"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="humans"].par_string.tolist()
+    output: tmp[tmp.edge=="humans"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule pan_edge:
+    input: tmp[tmp.edge=="pan"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="pan"].par_string.tolist()
+    output: tmp[tmp.edge=="pan"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule bonobo_edge:
+    input: tmp[tmp.edge=="bonobo"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="bonobo"].par_string.tolist()
+    output: tmp[tmp.edge=="bonobo"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule chimps_edge:
+    input: tmp[tmp.edge=="chimps"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="chimps"].par_string.tolist()
+    output: tmp[tmp.edge=="chimps"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule nigerian_western_edge:
+    input: tmp[tmp.edge=="nigerian_western"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="nigerian_western"].par_string.tolist()
+    output: tmp[tmp.edge=="nigerian_western"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule eastern_central_edge:
+    input: tmp[tmp.edge=="eastern_central"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="eastern_central"].par_string.tolist()
+    output: tmp[tmp.edge=="eastern_central"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule nigerian_chimp_edge:
+    input: tmp[tmp.edge=="nigerian_chimp"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="nigerian_chimp"].par_string.tolist()
+    output: tmp[tmp.edge=="nigerian_chimp"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule western_chimp_edge:
+    input: tmp[tmp.edge=="western_chimp"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="western_chimp"].par_string.tolist()
+    output: tmp[tmp.edge=="western_chimp"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule eastern_chimp_edge:
+    input: tmp[tmp.edge=="eastern_chimp"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="eastern_chimp"].par_string.tolist()
+    output: tmp[tmp.edge=="eastern_chimp"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule central_chimp_edge:
+    input: tmp[tmp.edge=="central_chimp"].path_population_tree.tolist()
+    params: recipe=recipe_path,s=tmp[tmp.edge=="central_chimp"].par_string.tolist()
+    output: tmp[tmp.edge=="central_chimp"].outfile.tolist()
+	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
