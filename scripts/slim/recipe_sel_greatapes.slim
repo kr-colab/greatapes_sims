@@ -16,16 +16,21 @@ initialize() {
     initializeMutationType("m2", 0.5, "e", asFloat(poscoef));
     initializeGenomicElementType("g1", c(m1,m2), c(asFloat(delprop),asFloat(posprop)));	
     f = readFile(exonfile);
+    i = 0;
     for (line in f) {
-            coord = asInteger(strsplit(line[0], "\t")[1:2]);
-            // just in case my file goes for longer than the stretch I want to simulate
-            if (coord[0] > asInteger(L)-1) {
-                    break;
-            }
-            if(coord[1] > asInteger(L)-1) {
+        coord = asInteger(strsplit(line[0], "\t")[1:2]);
+        // just in case my file goes for longer than the stretch I want to simulate
+        if (coord[0] > asInteger(L)-1) {
+                break;
+        }
+        if(coord[1] > asInteger(L)-1) {
             coord[1] = asInteger(L)-1;
-            }
-            initializeGenomicElement(g1, coord[0], coord[1]);
+        }
+        initializeGenomicElement(g1, coord[0], coord[1]);
+        i=i+1;
+    }
+    if(i==0) {
+        initializeGenomicElement(g1, 0, asInteger(L)-1);
     }
     //reading rec map
     lines = readFile(recfile);
