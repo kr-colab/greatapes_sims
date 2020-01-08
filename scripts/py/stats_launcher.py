@@ -18,7 +18,7 @@ tree_files = glob(out_path+prefix+"_RAND_*.trees")
 for ts_path in tree_files:
     matches = re.match( r'.+RAND_(.+).trees', ts_path )
     rand_id = matches.groups()[0]
-    write_sh(out_path, meta_path, script_path, ts_path, win_size, n_pops, prefix, time = "8:00:00", mem = "128G")
+    write_sh(out_path, meta_path, script_path, ts_path, win_size, n_pops, prefix, time = "8:00:00", mem = "256G")
     cmd = "sbatch "+rand_id+"_"+str(win_size)+".sh"
     out = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
     if (out.returncode != 0):

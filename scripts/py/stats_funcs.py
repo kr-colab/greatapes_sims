@@ -18,10 +18,10 @@ def acs_from_ts(ts, n_pops):
     acs=[]
     print("entrei nos acs")
     hap = allel.HaplotypeArray(ts.genotype_matrix())
-    geno = hap.to_genotypes(ploidy=2)
+    geno = hap.to_genotypes(ploidy=1)
     print("fiz hap and geno matrix")
     for i in range(n_pops):
-        subpop_indexes = ts.samples(population=i)
+        subpop_indexes = ts.samples(population=i).tolist()
         acs.append(geno.count_alleles(subpop=subpop_indexes))
     print("ja separei os acs per subpop")
     pos=np.array([s.position for s in ts.sites()])
