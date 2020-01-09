@@ -30,7 +30,7 @@ mut_rate=1.66e-8 #rate from https://www.sciencedirect.com/science/article/pii/S0
 params = pd.read_csv(table_path)
 params.drop_duplicates(['real_gens', 'real_pop_size_anc', 'real_pop_size1', 'real_pop_size2'], inplace=True) #making sure to not do more sims than necessary
 test_sims = pd.DataFrame({'spp1':['',''], 'spp2':['',''], 'div_time_kya':['',''], 'gen_time':['',''], 'pop_size':['',''], 'mut_rate':['',''],'gens':[8000,80000], 'ne_gens':['',''], 'real_gen_time':['',''], 'real_gens':[8000,80000], 'real_pop_size_anc':[1000,10000], 'real_pop_size1':[1000,10000], 'real_pop_size2':[1000,10000]})
-params=test_sims
+#params=test_sims
 for i in range(len(params)):
     #figure out which burnin tree refers to that ancN
     ancN = str(params.loc[i,]["real_pop_size_anc"])

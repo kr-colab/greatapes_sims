@@ -45,10 +45,12 @@ def remove_mutations(ts, starts, ends, prop):
     new_table.delete_sites(remove)
     return(new_table.tree_sequence())
 
-def recap(ts, recapN, rec_hap_path):
-    assert rec_hap_path != '', "Recapitation only supported with recombination hap map"
-    recomb_map = msprime.RecombinationMap.read_hapmap(rec_hap_path)
-    recapped = ts.recapitate(recombination_map=recomb_map, Ne=int(recapN))
+def recap(ts, recapN, rec_hap_path=""):
+    if (rec_hap_path==""):
+        recapped = ts.recapitate(recombination_rate=1e-8, Ne=int(recapN))
+    else:
+        recomb_map = msprime.RecombinationMap.read_hapmap(rec_hap_path)
+        recapped = ts.recapitate(recombination_map=recomb_map, Ne=int(recapN))
     print("Recapitated with recapN of "+recapN+" using pyslim...", flush=True)
     return(recapped)
 
@@ -56,7 +58,7 @@ def remove_extra(ts, ex_file_path, mut_rate, sel_mut_rate, slim_gen):
     assert slim_gen == ts.slim_generation, "You shouldn't simplify the tree before    running remove_mutations."
     prop_remove = sel_mut_rate/mut_rate
     exons = pd.read_csv(ex_file_path,sep="\t")
-    ts_removed = remove_mutations(ts, exons.iloc[:,1].to_numpy(), exons.iloc[:,2].
+    ts_removed = remove_mutations(ts, exons.iloc[:,1].to_numpy(), exons.iloc[:,2])
     print("Removed extra "+str(prop_remove*100)+"% of mutations within the specified      regions...")
     return(ts_removed)
 
@@ -72,23 +74,25 @@ def overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN="", rec_hap_path=""
         s2 = timer()
         ts_mut = remove_extra(ts_mut, ex_file_path, mut_rate, sel_mut_rate, slim_gen)
         s3 = timer()
-        print("Time elapsed to remove (min):"+str(round((s3-s2)/60,3))), flush=True)
+        print("Time elapsed to remove (min):"+str(round((s3-s2)/60,3)), flush=True)
     ts_final = ts_mut.simplify()
     recap_message = "" if recapN == "" else " and recapped"
     s4 = timer()
     ts_final.dump(out_ts_path)
     print(("Dumped overlaid"+recap_message+" trees to file", out_ts_path, "... Time elapsed (min):"+str(round((s4-s1)/60,3))), flush=True)
 
-assert len(sys.argv) > 3, "Not enough input was provided."
-
 print("arg1: in_ts_path, arg2: out_ts_path, arg3: mut_rate, arg4:recapN, arg5: rec_hap_path, arg6: ex_file_path, arg7: sel_mut_rate")
+
+assert len(sys.argv) > 3, "Not enough input was provided."
 
 in_ts_path = sys.argv[1]
 out_ts_path = sys.argv[2]
 mut_rate = float(sys.argv[3])
-recapN = sys.argv[4]
-rec_hap_path = sys.argv[5]
-ex_file_path = sys.argv[6]
-sel_mut_rate = sys.argv[7]
+if (len(sys.argv) > 4):
+    recapN = sys.argv[4]
+    if (len(sys.argv)>6):
+        ex_file_path = sys.argv[6]
+        rec_hap_path = sys.argv[5]
+        sel_mut_rate = sys.argv[7]
 
-overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN, rec_hap_path, ex_file_path, sel_mut_rate)
+overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN)#, rec_hap_path), ex_file_path, sel_mut_rate)
