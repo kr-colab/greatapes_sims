@@ -22,7 +22,7 @@ random.seed(101)
 #this table contains info for all edges we will simulate
 edges_path ="/home/murillor/projects/greatapes_sims/meta/edges_meta.tsv"
 meta_path = "/home/murillor/projects/greatapes_sims/meta/sims/"
-out_path = "/home/murillor/projects/greatapes_sims/output/"
+out_path = "../../output/"
 #path to tsv file with recombination rates
 rec_file = "/home/murillor/projects/greatapes_sims/meta/chr12_rec_rate_hg18.tsv"
 rec_hap_file = "/home/murillor/projects/greatapes_sims/meta/chr12_rec_rate_hg18.hapmap"
@@ -31,6 +31,7 @@ ex_file = "/home/murillor/projects/greatapes_sims/meta/chr12_exons_hg18.tsv"
 overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
 #path to slim recipe
 recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
+nreps=2
 
 #setting some parameters
 L=100
@@ -73,159 +74,46 @@ tmp["recfile"] = rec_file
 tmp["numid"] = tmp.groupby(["delprop","delcoef","posprop","poscoef"]).grouper.label_info
 rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
 tmp["rand_id"] = rands[tmp["numid"].tolist()]
-tmp["outfile"] = tmp.edge+"_"+tmp.rand_id+".trees"
-assert not tmp.outfile.duplicated().any(), "one of the outfile names is duplicated"
-tmp["path_population_tree"] = ""
+tmp["outfile_pre"] = tmp.edge+"_"+tmp.rand_id
+assert not tmp.outfile_pre.duplicated().any(), "one of the outfile names is duplicated"
+tmp.outfile_pre=out_path+tmp.outfile_pre
 tmp.reset_index(drop=True, inplace=True)
-
-#we need to figure out if any previous sim is necessary to run before
-depend_tree = []
-for i in range(len(tmp)):
-    if tmp.iloc[i].edge=="great_apes":
-        depend_tree.append("")
-    else:
-        parent_df = tmp[np.logical_and(tmp.numid==tmp.iloc[i].numid,tmp.edge==tmp.iloc[i].parent)]
-        depend_tree.append(parent_df.outfile.values[0])
-        assert len(parent_df)==1, "more than one parent"
-tmp["path_population_tree"] = depend_tree
-
 #finally assembling our parameter string which will be passed to the slim recipe
 tmp["par_string"]=tmp[["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef","posprop","poscoef",   "N", "gens"]].apply(get_par_string, axis=1)
-tmp.path_population_tree=out_path+tmp.path_population_tree
-tmp.outfile=out_path+tmp.outfile
 #setting the overlayed file name
-tmp['overl_out'] = tmp.outfile.apply(lambda x: x.replace(".trees",".overl.trees"))
+#tmp['overl_out'] = tmp.outfile.apply(lambda x: x.replace(".trees",".overl.trees"))
 
 # I'm getting the terminals bc not all trees are supposed to be overlayed with mutations and recapped
 terminals=list(set(tmp.edge.tolist()) - set(tmp.parent.tolist()))
+terminal_prefixes = np.array(tmp[tmp.edge.isin(terminals)].outfile_pre)
+replicated = np.repeat(terminal_prefixes, nreps)
+pad=len(str(nreps))
+uniqs=np.unique(replicated, return_counts=True)[1]
+assert len(set(uniqs)) == 1, "Not all sims are being replicated equally."
+rep_suf = np.tile(["rep"+str(i).zfill(pad) for i in range(uniqs[0])], len(uniqs))
+all_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(replicated,rep_suf)]
+overl = [f"{x1}_{x2}_overl.trees" for x1,x2 in zip(replicated,rep_suf)]
+
+ruleorder: root > branch > overlay
 
 rule all:
-    input:  tmp[tmp.edge.isin(terminals)].outfile.tolist() #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
+    input:  all_replicates+overl #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
 
 rule overlay:
-    input: tmp[tmp.edge.isin(terminals)].outfile.tolist()
+    input: "../../output/{edge}_{rand_id}_rep{rep}.trees"
     params: mut_rate=total_mu, recapN=edges_meta[edges_meta.edge=="great_apes"].N.item(),
-            rec_hap_path=rec_hap_file, ex_file_path=ex_file, sel_mut_rate=tmp[tmp.edge.isin(terminals)].mu.tolist()
-    output: tmp[tmp.edge.isin(terminals)].overl_out.tolist()
-    shell: "python {input} {output} {params.mut_rate} {params.recapN} {params.rec_hap_path} {params.ex_file_path} {params.sel_mut_rate}"
+            rec_hap_path=rec_hap_file, ex_file_path=ex_file, sel_mut_rate=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].mu.item()
+    output: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees" 
+    shell: "python overlay.py {input} {output} {params.mut_rate} {params.recapN} {params.rec_hap_path} {params.ex_file_path} {params.sel_mut_rate}"
 
-rule great_apes_edge:
-    input:  
-    params: recipe=recipe_path,s=tmp[tmp.edge=="great_apes"].par_string.tolist()
-    output: tmp[tmp.edge=="great_apes"].outfile.tolist()
+rule root: 
+    params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great_apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item()
+    output: "../../output/great_apes_{rand_id}_rep{rep}.trees"
     shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-"""
-rule orangutans_edge:
-    input: tmp[tmp.edge=="orangutans"].path_population_tree.tolist() 
-    params: par_str=tmp[tmp.edge=="orangutans"].par_string.tolist(), recipe=recipe_path, out_p=out_path
-    output: tmp[tmp.edge=="orangutans"].outfile.tolist()
-    shell:  "slim -m -t {params.par_str} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"'  {params.recipe}"
-"""
-rule orangutans_edge:
-    input: tmp[tmp.edge=="orangutans"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="orangutans"].par_string.tolist()
-    output: tmp[tmp.edge=="orangutans"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
 
-rule bornean_orangutan_edge:
-    input: tmp[tmp.edge=="bornean_orangutan"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="bornean_orangutan"].par_string.tolist()
-    output: tmp[tmp.edge=="bornean_orangutan"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule sumatran_orangutan_edge:
-    input: tmp[tmp.edge=="sumatran_orangutan"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="sumatran_orangutan"].par_string.tolist()
-    output: tmp[tmp.edge=="sumatran_orangutan"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule african_apes_edge:
-    input: tmp[tmp.edge=="african_apes"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="african_apes"].par_string.tolist()
-    output: tmp[tmp.edge=="african_apes"].outfile.tolist()
-    shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule gorilla_edge:
-    input: tmp[tmp.edge=="gorilla"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="gorilla"].par_string.tolist()
-    output: tmp[tmp.edge=="gorilla"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule eastern_gorilla_edge:
-    input: tmp[tmp.edge=="eastern_gorilla"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="eastern_gorilla"].par_string.tolist()
-    output: tmp[tmp.edge=="eastern_gorilla"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule western_gorila_edge:
-    input: tmp[tmp.edge=="western_gorila"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="western_gorila"].par_string.tolist()
-    output: tmp[tmp.edge=="western_gorila"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule human_pan_edge:
-    input: tmp[tmp.edge=="human_pan"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="human_pan"].par_string.tolist()
-    output: tmp[tmp.edge=="human_pan"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule humans_edge:
-    input: tmp[tmp.edge=="humans"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="humans"].par_string.tolist()
-    output: tmp[tmp.edge=="humans"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule pan_edge:
-    input: tmp[tmp.edge=="pan"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="pan"].par_string.tolist()
-    output: tmp[tmp.edge=="pan"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule bonobo_edge:
-    input: tmp[tmp.edge=="bonobo"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="bonobo"].par_string.tolist()
-    output: tmp[tmp.edge=="bonobo"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule chimps_edge:
-    input: tmp[tmp.edge=="chimps"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="chimps"].par_string.tolist()
-    output: tmp[tmp.edge=="chimps"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule nigerian_western_edge:
-    input: tmp[tmp.edge=="nigerian_western"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="nigerian_western"].par_string.tolist()
-    output: tmp[tmp.edge=="nigerian_western"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule eastern_central_edge:
-    input: tmp[tmp.edge=="eastern_central"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="eastern_central"].par_string.tolist()
-    output: tmp[tmp.edge=="eastern_central"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule nigerian_chimp_edge:
-    input: tmp[tmp.edge=="nigerian_chimp"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="nigerian_chimp"].par_string.tolist()
-    output: tmp[tmp.edge=="nigerian_chimp"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule western_chimp_edge:
-    input: tmp[tmp.edge=="western_chimp"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="western_chimp"].par_string.tolist()
-    output: tmp[tmp.edge=="western_chimp"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule eastern_chimp_edge:
-    input: tmp[tmp.edge=="eastern_chimp"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="eastern_chimp"].par_string.tolist()
-    output: tmp[tmp.edge=="eastern_chimp"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
-rule central_chimp_edge:
-    input: tmp[tmp.edge=="central_chimp"].path_population_tree.tolist()
-    params: recipe=recipe_path,s=tmp[tmp.edge=="central_chimp"].par_string.tolist()
-    output: tmp[tmp.edge=="central_chimp"].outfile.tolist()
-	shell: "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
-
+rule branch:
+    input: lambda wildcards: "../../output/"+edges_info[edges_info.edge==wildcards.edge].parent.item()+"_"+wildcards.rand_id+"_rep"+wildcards.rep+".trees" 
+    params: recipe=recipe_path,s=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.  rand_id==wildcards.rand_id)].par_string.item()
+    wildcard_constraints: edge="(?!great_apes).*", rep="[0-9]+"
+    output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
+    shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
