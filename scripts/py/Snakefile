@@ -33,13 +33,13 @@ ex_file = "/home/murillor/projects/greatapes_sims/meta/chr12_exons_hg18.tsv"
 overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
 #path to slim recipe
 recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
-nreps=2
+nreps=10
 
 #setting some parameters
 L=100
 total_mu = 1.66e-8
 # proportions should be fractions
-delprops = [0,0.1]
+delprops = [0,0.10]
 posprops = [0]
 delcoefs = [0,-0.03]
 poscoefs = [0]
@@ -48,6 +48,9 @@ sel_params = {"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "posco
 pars = ["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens"]
 # suck up params and hash them
 edges_meta = pd.read_csv(edges_path,sep="\t")
+edges_meta["edge"] = edges_meta["edge"].str.replace('_','-')
+edges_meta["parent"] = edges_meta["parent"].str.replace('_','-')
+#print(edges_meta)
 edges_info = edges_meta[["edge","parent","N","gens"]]
 
 edges_info.gens=10 #this is here just for testing purposes
@@ -113,22 +116,22 @@ rule all:
 
 rule overlay:
     input: "../../output/{edge}_{rand_id}_rep{rep}.trees"
-    params: mut_rate=total_mu, recapN=edges_meta[edges_meta.edge=="great_apes"].N.item(),
+    params: mut_rate=total_mu, recapN=edges_meta[edges_meta.edge=="great-apes"].N.item(),
             rec_hap_path=rec_hap_file, ex_file_path=ex_file, sel_mut_rate=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].mu.item()
     output: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees" 
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.overl.benchmark.txt"
     shell: "python overlay.py {input} {output} {params.mut_rate} {params.recapN} {params.rec_hap_path} {params.ex_file_path} {params.sel_mut_rate}"
 
 rule root: 
-    params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great_apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item()
-    output: "../../output/great_apes_{rand_id}_rep{rep}.trees"
-    benchmark: "../../benchmarks/great_apes_{rand_id}_rep{rep}.slim.benchmark.txt"
+    params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item()
+    output: "../../output/great-apes_{rand_id}_rep{rep}.trees"
+    benchmark: "../../benchmarks/great-apes_{rand_id}_rep{rep}.slim.benchmark.txt"
     shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
 
 rule branch:
     input: lambda wildcards: "../../output/"+edges_info[edges_info.edge==wildcards.edge].parent.item()+"_"+wildcards.rand_id+"_rep"+wildcards.rep+".trees" 
     params: recipe=recipe_path,s=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.  rand_id==wildcards.rand_id)].par_string.item()
-    wildcard_constraints: edge="(?!great_apes).*", rep="[0-9]+"
+    wildcard_constraints: edge="(?!great-apes).*", rep="[0-9]+"
     output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
     shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
