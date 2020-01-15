@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import string
 import random
+import datetime as dt
 
 def expand_grid(data_dict):
     """Create a dataframe from every combination of given values."""
@@ -16,7 +17,8 @@ def get_par_string(row, col_names=["siminterval", "L", "recfile", "exonfile", "m
     row_values = row.values.astype('str').tolist()
     return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in                  range(len(col_names))]))
 
-random.seed(101)
+seed=101
+random.seed(seed)
 
 #these are the paths to all files/dir we will need
 #this table contains info for all edges we will simulate
@@ -36,12 +38,14 @@ nreps=2
 #setting some parameters
 L=100
 total_mu = 1.66e-8
-delprops = [0,10]
+# proportions should be fractions
+delprops = [0,0.1]
 posprops = [0]
-delcoefs = [0,-3]
+delcoefs = [0,-0.03]
 poscoefs = [0]
 sel_params = {"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "poscoef":poscoefs}
-
+# cols with params
+pars = ["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens"]
 # suck up params and hash them
 edges_meta = pd.read_csv(edges_path,sep="\t")
 edges_info = edges_meta[["edge","parent","N","gens"]]
@@ -79,21 +83,29 @@ assert not tmp.outfile_pre.duplicated().any(), "one of the outfile names is dupl
 tmp.outfile_pre=out_path+tmp.outfile_pre
 tmp.reset_index(drop=True, inplace=True)
 #finally assembling our parameter string which will be passed to the slim recipe
-tmp["par_string"]=tmp[["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef","posprop","poscoef",   "N", "gens"]].apply(get_par_string, axis=1)
-#setting the overlayed file name
-#tmp['overl_out'] = tmp.outfile.apply(lambda x: x.replace(".trees",".overl.trees"))
+tmp["par_string"]=tmp[pars].apply(get_par_string, axis=1)
+
+# writing tmp to file
+today = dt.datetime.today().strftime('%m%d%Y')
+tmp["date"] = today
+tmp.to_csv("../../output/sims_info.tsv", sep="\t", header=False, index=False, mode="a")
 
 # I'm getting the terminals bc not all trees are supposed to be overlayed with mutations and recapped
 terminals=list(set(tmp.edge.tolist()) - set(tmp.parent.tolist()))
 terminal_prefixes = np.array(tmp[tmp.edge.isin(terminals)].outfile_pre)
+
+#dealing with replicates
 replicated = np.repeat(terminal_prefixes, nreps)
 pad=len(str(nreps))
 uniqs=np.unique(replicated, return_counts=True)[1]
 assert len(set(uniqs)) == 1, "Not all sims are being replicated equally."
 rep_suf = np.tile(["rep"+str(i).zfill(pad) for i in range(uniqs[0])], len(uniqs))
 all_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(replicated,rep_suf)]
+
+# overlay filenames
 overl = [f"{x1}_{x2}_overl.trees" for x1,x2 in zip(replicated,rep_suf)]
 
+# this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
 ruleorder: root > branch > overlay
 
 rule all:
@@ -104,11 +116,13 @@ rule overlay:
     params: mut_rate=total_mu, recapN=edges_meta[edges_meta.edge=="great_apes"].N.item(),
             rec_hap_path=rec_hap_file, ex_file_path=ex_file, sel_mut_rate=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].mu.item()
     output: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees" 
+    benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.overl.benchmark.txt"
     shell: "python overlay.py {input} {output} {params.mut_rate} {params.recapN} {params.rec_hap_path} {params.ex_file_path} {params.sel_mut_rate}"
 
 rule root: 
     params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great_apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item()
     output: "../../output/great_apes_{rand_id}_rep{rep}.trees"
+    benchmark: "../../benchmarks/great_apes_{rand_id}_rep{rep}.slim.benchmark.txt"
     shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
 
 rule branch:
@@ -116,4 +130,5 @@ rule branch:
     params: recipe=recipe_path,s=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.  rand_id==wildcards.rand_id)].par_string.item()
     wildcard_constraints: edge="(?!great_apes).*", rep="[0-9]+"
     output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
+    benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
     shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
