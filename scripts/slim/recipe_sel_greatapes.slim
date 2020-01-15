@@ -1,4 +1,7 @@
 initialize() {
+    if (exists("seed")) {
+        setSeed(asInteger(seed))
+    }
     // this should be used for sims with large populations being run for a long period of time. the number of nodes in the treeseq explodes.
     if (exists("siminterval")) {
         if (siminterval =="") {
