@@ -1,5 +1,5 @@
 edge	parent	ancestral_coding	assumed_mut_rate	node_to_tip_split_kya	age_est_method	edge_age_kya	gen_time	gens	N	N_est_method	notes
-great_apes		20	1.00E-09	11138	coalhmm		20	250178	125089	coalhmm	5N burnin
+great_apes		20	1.00E-09	11138	coalhmm		20	500356	125089	coalhmm	4N burnin
 orangutans	great_apes	15	1.00E-09	485	psmc	10653	26	409731	19231	psmc
 bornean_orangutan	orangutans	10	1.00E-09			485	26	18654	7692	psmc
 sumatran_orangutan	orangutans	11	1.00E-09			485	26	18654	16731	psmc
