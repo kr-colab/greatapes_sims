@@ -12,16 +12,18 @@ import itertools
 from timeit import default_timer as timer
 import pandas as pd
 
-def acs_from_ts(ts, n_pops):
+def acs_from_multipop_ts(ts):
     '''
     This function takes a tree sequence, and returns tuple with a list of allele counts for each subpop, and an array of the positions'''
     acs=[]
     print("entrei nos acs")
     hap = allel.HaplotypeArray(ts.genotype_matrix())
-    geno = hap.to_genotypes(ploidy=1)
+    geno = hap.to_genotypes(ploidy=2)
     print("fiz hap and geno matrix")
-    for i in range(n_pops):
-        subpop_indexes = ts.samples(population=i).tolist()
+    # get the pop for each individual
+    ind_pops = np.array([i.population for i in ts.individuals()])
+    for i in range(len(np.unique(ind_pops))):
+        subpop_indexes = np.where(ind_pops==i)[0].tolist()
         acs.append(geno.count_alleles(subpop=subpop_indexes))
     print("ja separei os acs per subpop")
     pos=np.array([s.position for s in ts.sites()])
