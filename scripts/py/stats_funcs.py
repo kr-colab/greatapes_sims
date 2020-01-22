@@ -12,10 +12,16 @@ import itertools
 from timeit import default_timer as timer
 import pandas as pd
 
-def acs_from_multipop_ts(ts):
+def acs_from_ts(ts, n=0):
     '''
-    This function takes a tree sequence, and returns tuple with a list of allele counts for each subpop, and an array of the positions'''
+    This function takes a tree sequence, and returns tuple with a list of allele counts for each subpop, and an array of the positions
+    n = sample size
+    '''
     acs=[]
+    if(n>0):
+        ind_nodes = np.array([i.nodes for i in ts.individuals()])
+        sample_i = np.random.choice(ind_nodes.shape[0], size=n,replace=False)
+        ts = ts.simplify(ind_nodes[sample_i,:].flatten())
     print("entrei nos acs")
     hap = allel.HaplotypeArray(ts.genotype_matrix())
     geno = hap.to_genotypes(ploidy=2)
@@ -27,6 +33,7 @@ def acs_from_multipop_ts(ts):
         acs.append(geno.count_alleles(subpop=subpop_indexes))
     print("ja separei os acs per subpop")
     pos=np.array([s.position for s in ts.sites()])
+    print(len(acs))
     return(acs, pos)
 
 def get_meta(ts_path, meta_path):
