@@ -19,9 +19,14 @@ def acs_from_ts(ts, n=0):
     '''
     acs=[]
     if(n>0):
-        ind_nodes = np.array([i.nodes for i in ts.individuals()])
-        sample_i = np.random.choice(ind_nodes.shape[0], size=n,replace=False)
-        ts = ts.simplify(ind_nodes[sample_i,:].flatten())
+        # make sure individuals were alive at the end of sim
+        alive = ts.individuals_alive_at(0)
+        samp_indivs = np.random.choice(alive, size=n, replace=False)
+        samp_nodes = []
+        for i in samp_indivs:
+            samp_nodes.append(ts.individual(i).nodes)
+        samp_nodes = np.array(samp_nodes).flatten()
+        ts = ts.simplify(samp_nodes)
     print("entrei nos acs")
     hap = allel.HaplotypeArray(ts.genotype_matrix())
     geno = hap.to_genotypes(ploidy=2)
