@@ -36,6 +36,29 @@ def acs_from_ts(ts, n=0):
     print(len(acs))
     return(acs, pos)
 
+def single_pop_stats_from_ts(ts_path, L, win_size, n):
+    #getting the identifier of the treeseq
+    #getting all pairwise combinations of pops
+    print("entrei")
+    ts = pyslim.load(ts_path).simplify()
+    s1 = timer()
+    print("vou pegar os acs")
+    acs, pos = acs_from_ts(ts, n)
+    ac = acs[0]
+    tmp = pd.DataFrame()
+    print("Calculating single population stats...", flush=True)
+    pi, windows, n_bases, counts = allel.windowed_diversity(pos, ac, size=win_size,           start=1, stop=L)
+    D, windows, counts = allel.windowed_tajima_d(pos, ac, size=win_size, start=1, stop=L)
+    tmp['start'] = windows[:,0]
+    tmp['end'] = windows[:,1]
+    tmp['n_acc'] = n_bases
+    tmp['pi'] = pi
+    tmp['tajd'] = D
+    s2 = timer()
+    print(("Calculated single pop stats... Time elapsed (min):"+str(round((s2-s1)/60,         3))), flush=True)
+    s1=timer()
+    return(tmp)
+
 def get_meta(ts_path, meta_path):
     '''
     This function gets the genome sequence length and the random identifier based on a path to a tree file (ts_path) and the path to the metadata folder.
