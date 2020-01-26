@@ -33,10 +33,12 @@ ex_file = "/home/murillor/projects/greatapes_sims/meta/chr12_exons_hg18.tsv"
 overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
 #path to slim recipe
 recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
-nreps=10
+nreps=2
 
 #setting some parameters
 L=100
+sample_size=10
+win_size=100000
 total_mu = 1.66e-8
 # proportions should be fractions
 delprops = [0,0.10]
@@ -108,11 +110,21 @@ all_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(replicated,rep_suf)]
 # overlay filenames
 overl = [f"{x1}_{x2}_overl.trees" for x1,x2 in zip(replicated,rep_suf)]
 
+# single stats filenames
+single = [f"{x1}_{x2}_singlestats.tsv" for x1,x2 in zip(replicated, rep_suf)]
+
 # this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
-ruleorder: root > branch > overlay
+ruleorder: root > branch > overlay > single_pop_stats
 
 rule all:
-    input:  all_replicates+overl #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
+    input:  single #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
+
+rule single_pop_stats:
+    input: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees"
+    output: "../../output/{edge}_{rand_id}_rep{rep}_singlestats.tsv"
+    params: win_size=win_size,  n=sample_size, L=L
+    benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.singlestats.benchmark.txt"
+    shell: "python stats_from_tree.py {input} {output} {wildcards.edge} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n}"
 
 rule overlay:
     input: "../../output/{edge}_{rand_id}_rep{rep}.trees"
