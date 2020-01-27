@@ -17,21 +17,23 @@ def acs_from_ts(ts, n=0):
     This function takes a tree sequence, and returns tuple with a list of allele counts for each subpop, and an array of the positions
     n = sample size
     '''
+    #np.random.seed(7)
     acs=[]
+    # sampling n individuals from treeseq
     if(n>0):
         # make sure individuals were alive at the end of sim
         alive = ts.individuals_alive_at(0)
         samp_indivs = np.random.choice(alive, size=n, replace=False)
         samp_nodes = []
         for i in samp_indivs:
-            samp_nodes.append(ts.individual(i).nodes)
-        samp_nodes = np.array(samp_nodes).flatten()
+            samp_nodes.extend(ts.individual(i).nodes)
+        samp_nodes = np.array(samp_nodes)
         ts = ts.simplify(samp_nodes)
     print("entrei nos acs")
     hap = allel.HaplotypeArray(ts.genotype_matrix())
     geno = hap.to_genotypes(ploidy=2)
     print("fiz hap and geno matrix")
-    # get the pop for each individual
+    # getting the pop for each individual and counting alleles for each pop
     ind_pops = np.array([i.population for i in ts.individuals()])
     for i in range(len(np.unique(ind_pops))):
         subpop_indexes = np.where(ind_pops==i)[0].tolist()
@@ -42,10 +44,8 @@ def acs_from_ts(ts, n=0):
     return(acs, pos)
 
 def single_pop_stats_from_ts(ts_path, L, win_size, n):
-    #getting the identifier of the treeseq
-    #getting all pairwise combinations of pops
     print("entrei")
-    ts = pyslim.load(ts_path).simplify()
+    ts = pyslim.load(ts_path)
     s1 = timer()
     print("vou pegar os acs")
     acs, pos = acs_from_ts(ts, n)
