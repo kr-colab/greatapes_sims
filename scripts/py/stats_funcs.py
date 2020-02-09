@@ -17,7 +17,7 @@ def acs_from_ts(ts, n=0):
     This function takes a tree sequence, and returns tuple with a list of allele counts for each subpop, and an array of the positions
     n = sample size
     '''
-    #np.random.seed(7)
+    #np.random.seed(102849)
     acs=[]
     # sampling n individuals from treeseq
     if(n>0):
@@ -28,15 +28,20 @@ def acs_from_ts(ts, n=0):
         for i in samp_indivs:
             samp_nodes.extend(ts.individual(i).nodes)
         samp_nodes = np.array(samp_nodes)
+        print(samp_nodes.shape, "shape samp nodes")
         ts = ts.simplify(samp_nodes)
     print("entrei nos acs")
     hap = allel.HaplotypeArray(ts.genotype_matrix())
     geno = hap.to_genotypes(ploidy=2)
     print("fiz hap and geno matrix")
     # getting the pop for each individual and counting alleles for each pop
-    ind_pops = np.array([i.population for i in ts.individuals()])
+    ind_pops = np.array([ts.individual(i).population for i in ts.individuals_alive_at(0)])
+    print("sample size", n)
+    print(ind_pops.shape, "shape")
     for i in range(len(np.unique(ind_pops))):
-        subpop_indexes = np.where(ind_pops==i)[0].tolist()
+        subpop_indexes = np.where(ind_pops==i)[0]
+        print(subpop_indexes)
+        print(geno.shape)
         acs.append(geno.count_alleles(subpop=subpop_indexes))
     print("ja separei os acs per subpop")
     pos=np.array([s.position for s in ts.sites()])
