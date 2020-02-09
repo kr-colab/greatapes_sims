@@ -33,7 +33,7 @@ initialize() {
         i=i+1;
     }
     if(i==0) {
-        initializeGenomicElement(g1, 0, asInteger(L)-1);
+        initializeGenomicElement(g1, 0, integerDiv(asInteger(L),3)-1);
     }
     //reading rec map
     lines = readFile(recfile);
