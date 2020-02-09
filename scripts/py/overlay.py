@@ -84,7 +84,6 @@ def overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN="", rec_hap_path=""
 print("arg1: in_ts_path, arg2: out_ts_path, arg3: mut_rate, arg4:recapN, arg5: rec_hap_path, arg6: ex_file_path, arg7: sel_mut_rate")
 
 assert len(sys.argv) > 3, "Not enough input was provided."
-
 in_ts_path = sys.argv[1]
 out_ts_path = sys.argv[2]
 mut_rate = float(sys.argv[3])
