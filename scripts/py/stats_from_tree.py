@@ -5,10 +5,9 @@ output: csv with all stats(long) for all windows (append existing)
 import sys
 import os.path
 from stats_funcs import *
-
+import numpy as np
 print("input: tree_path(str), filename(str), spp(str), rand_id(str), rep(str), win_size(int), L(int), n(int)")
 assert len(sys.argv) == 9, "Not enough input was provided."
-
 ts_path = sys.argv[1]
 filename = sys.argv[2]
 spp = sys.argv[3]
