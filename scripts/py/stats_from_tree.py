@@ -22,6 +22,5 @@ stats = single_pop_stats_from_ts(ts_path, L, win_size, n)
 stats['spp'] = spp
 stats['rand_id'] = rand_id
 stats['rep'] = rep
-stats.to_csv(filename, sep="\t", header=(not os.path.exists(filename)), index=False, mode="a")
-
-
+stats.to_csv("single_pop_all.tsv", header=(not os.path.exists("single_pop_all.tsv")), index=False, mode="a")
+stats.to_csv(filename, sep="\t", header=(not os.path.exists(filename)), index=False,         mode="a")
