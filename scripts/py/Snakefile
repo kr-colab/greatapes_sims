@@ -33,7 +33,7 @@ ex_file = "/home/murillor/projects/greatapes_sims/meta/chr12_exons_hg18.tsv"
 overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
 #path to slim recipe
 recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
-nreps=50
+nreps=2
 
 #setting some parameters
 L=1000
@@ -114,11 +114,22 @@ overl = [f"{x1}_{x2}_overl.trees" for x1,x2 in zip(replicated,rep_suf)]
 # single stats filenames
 single = [f"{x1}_{x2}_singlestats.tsv" for x1,x2 in zip(replicated, rep_suf)]
 
+# multi pop stats filenames
+pairs = list(itertools.combinations(terminals,2))
+pair_strings = [spp[0]+"_"+spp[1] for spp in pairs]
+multi = [out_path+s+"_"+rid+"_rep"+str(rep)+"_multistats.tsv" for s in pair_strings for rid in rands for rep in range(nreps)]
+
 # this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
-ruleorder: root > branch > overlay > single_pop_stats
+ruleorder: root > branch > overlay > single_pop_stats > multi_pop_stats
 
 rule all:
-    input:  single #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
+    input:  single+multi #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
+
+rule multi_pop_stats:
+    input: spp1="../../output/{edge1}_{rand_id}_rep{rep}_overl.trees", spp2="../../output/{edge2}_{rand_id}_rep{rep}_overl.trees" 
+    output: "../../output/{edge1}_{edge2}_{rand_id}_rep{rep}_multistats.tsv"
+    params: win_size=win_size, n=sample_size, L=L
+    shell: "python multipop_stats_from_trees.py {input.spp1},{input.spp2} {output} {wildcards.edge1},{wildcards.edge2} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n}"
 
 rule single_pop_stats:
     input: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees"
