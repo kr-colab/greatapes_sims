@@ -73,8 +73,8 @@ initialize() {
     // rescheduling the time to end simulation
     sim.rescheduleScriptBlock(s0, generations=sim.generation+asInteger(gens));
     //schedule sampling in equaly spaced intervals
-    intervals = 1:3/4;
-    sim.rescheduleScriptBlock(s1, generations=sim.generation+asInteger(ceil(intervals*asInteger(gens))));
+    //intervals = 1:3/4;
+    //sim.rescheduleScriptBlock(s1, generations=sim.generation+asInteger(ceil(intervals*asInteger(gens))));
 }
 
 10000: {
@@ -94,7 +94,7 @@ s0 5 late() {
     catn("To file: "+outfile);
 }
 
-s1 5 late() {
-    catn("Remembering at generation "+sim.generation);
-    sim.treeSeqRememberIndividuals(sim.subpopulations.individuals);
-}
+//s1 5 late() {
+//    catn("Remembering at generation "+sim.generation);
+//    sim.treeSeqRememberIndividuals(sim.subpopulations.individuals);
+//}
