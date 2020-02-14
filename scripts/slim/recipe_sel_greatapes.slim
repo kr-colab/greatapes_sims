@@ -32,10 +32,15 @@ initialize() {
         initializeGenomicElement(g1, coord[0], coord[1]);
         i=i+1;
     }
-    if(i==0 & asFloat(delprop)+asFloat(posprop)>0) {
-        initializeGenomicElement(g1, 0, integerDiv(asInteger(L),3)-1);
+    if(i==0) {
+        initializeGenomicElement(g1, 0, asInteger(L)-1);
     }
     //reading rec map
+    if(exists("rescf")) {
+        rf = asFloat(rescf);
+    } else {
+        rf = 1;
+    }
     lines = readFile(recfile);
     rates=NULL;
     ends=NULL;
@@ -54,7 +59,7 @@ initialize() {
         ends=ends[ends<asInteger(L)];
         ends[length(ends)-1] = asInteger(L)-1;
     }
-    rates = rates * 1e-8;
+    rates = (rates * 1e-8)/rf;
     initializeRecombinationRate(rates,ends);
 }
 
@@ -76,8 +81,8 @@ initialize() {
     intervals = 1/2;
     sim.rescheduleScriptBlock(s1, generations=sim.generation+asInteger(ceil(intervals*asInteger(gens))));
     // scheduling saving output + progress messages
-    if (gens > 50000) {
-        sim.rescheduleScriptBlock(s2, generations=sim.generation+seq(50000,gens, 50000))
+    if (asInteger(gens) >= 50000) {
+        sim.rescheduleScriptBlock(s2, generations=sim.generation+seq(50000,asInteger(gens), 50000));
     }
 }
 

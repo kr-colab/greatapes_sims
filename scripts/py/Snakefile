@@ -4,6 +4,7 @@ import numpy as np
 import string
 import random
 import datetime as dt
+import math
 
 def expand_grid(data_dict):
     """Create a dataframe from every combination of given values."""
@@ -33,17 +34,18 @@ ex_file = "/home/murillor/projects/greatapes_sims/meta/chr12_exons_hg18.tsv"
 overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
 #path to slim recipe
 recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
-nreps=2
+nreps=1
+rescale_factor = 1/50
 
 #setting some parameters
-L=1000
+L=20000000
 sample_size=10
-win_size=1000
-total_mu = 1.66e-8
+win_size=1000000
+total_mu = 1.66e-8/rescale_factor
 # proportions should be fractions
-delprops = [0,0.10]
+delprops = [0]
 posprops = [0]
-delcoefs = [0,-0.03]
+delcoefs = [0]
 poscoefs = [0]
 sel_params = {"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "poscoef":poscoefs}
 # cols with params
@@ -55,8 +57,9 @@ edges_meta["parent"] = edges_meta["parent"].str.replace('_','-')
 #print(edges_meta)
 edges_info = edges_meta[["edge","parent","N","gens"]]
 
-edges_info.gens=1000 #this is here just for testing purposes
-#edges_info.N=np.max(edges_info.N)
+#edges_info.gens=1000 #this is here just for testing purposes
+edges_info.N=np.ceil(edges_info.N*rescale_factor).astype(int)
+rescale_factor = str(rescale_factor)
 #making a data frame that is going to hold all combinations of parameters
 tmp=pd.DataFrame()
 for i, row in edges_info.iterrows():
@@ -96,7 +99,8 @@ tmp["date"] = today
 tmp.to_csv("../../output/sims_info.tsv", sep="\t", header=False, index=False, mode="a")
 
 # I'm getting the terminals bc not all trees are supposed to be overlayed with mutations and recapped
-terminals=list(set(tmp.edge.tolist()) - set(tmp.parent.tolist()))
+terminals=list(set(edges_meta.edge.tolist()) - set(edges_meta.parent.tolist()))
+terminals.sort()
 #terminals=["eastern-chimp"]
 terminal_prefixes = np.array(tmp[tmp.edge.isin(terminals)].outfile_pre)
 
@@ -115,19 +119,21 @@ overl = [f"{x1}_{x2}_overl.trees" for x1,x2 in zip(replicated,rep_suf)]
 single = [f"{x1}_{x2}_singlestats.tsv" for x1,x2 in zip(replicated, rep_suf)]
 
 # multi pop stats filenames
+print(terminals)
 pairs = list(itertools.combinations(terminals,2))
-pair_strings = [spp[0]+"_"+spp[1] for spp in pairs]
-multi = [out_path+s+"_"+rid+"_rep"+str(rep)+"_multistats.tsv" for s in pair_strings for rid in rands for rep in range(nreps)]
+pair_strings = ["sp1_"+spp[0]+"_sp2_"+spp[1] for spp in pairs]
+print(pairs)
+multi = [out_path+s+"_"+rid+"_rep"+str(rep).zfill(pad)+"_multistats.tsv" for s in pair_strings for rid in rands for rep in range(nreps)]
 
 # this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
-ruleorder: root > branch > overlay > single_pop_stats > multi_pop_stats
+ruleorder: root > branch > overlay
 
 rule all:
     input:  single+multi #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
 
 rule multi_pop_stats:
     input: spp1="../../output/{edge1}_{rand_id}_rep{rep}_overl.trees", spp2="../../output/{edge2}_{rand_id}_rep{rep}_overl.trees" 
-    output: "../../output/{edge1}_{edge2}_{rand_id}_rep{rep}_multistats.tsv"
+    output: "../../output/sp1_{edge1}_sp2_{edge2}_{rand_id}_rep{rep}_multistats.tsv"
     params: win_size=win_size, n=sample_size, L=L
     shell: "python multipop_stats_from_trees.py {input.spp1},{input.spp2} {output} {wildcards.edge1},{wildcards.edge2} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n}"
 
@@ -147,15 +153,15 @@ rule overlay:
     shell: "python overlay.py {input} {output} {params.mut_rate} {params.recapN} {params.rec_hap_path} {params.ex_file_path} {params.sel_mut_rate}"
 
 rule root: 
-    params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item()
+    params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item(), rescale=rescale_factor
     output: "../../output/great-apes_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/great-apes_{rand_id}_rep{rep}.slim.benchmark.txt"
-    shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+    shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' -d rescf='{params.rescale}' {params.recipe}"
 
 rule branch:
     input: lambda wildcards: "../../output/"+edges_info[edges_info.edge==wildcards.edge].parent.item()+"_"+wildcards.rand_id+"_rep"+wildcards.rep+".trees" 
-    params: recipe=recipe_path,s=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.  rand_id==wildcards.rand_id)].par_string.item()
+    params: recipe=recipe_path,s=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.  rand_id==wildcards.rand_id)].par_string.item(), rescale=rescale_factor
     wildcard_constraints: edge="(?!great-apes).*", rep="[0-9]+"
     output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
-    shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
+    shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' -d rescf='{params.rescale}' {params.recipe}"
