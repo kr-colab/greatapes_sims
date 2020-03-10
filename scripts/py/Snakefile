@@ -18,7 +18,7 @@ def get_par_string(row, col_names=["siminterval", "L", "recfile", "exonfile", "m
     row_values = row.values.astype('str').tolist()
     return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in                  range(len(col_names))]))
 
-seed=1384397
+seed=1384393
 random.seed(seed)
 np.random.seed(seed)
 #these are the paths to all files/dir we will need
@@ -33,21 +33,23 @@ rec_hap_file = "/home/murillor/projects/greatapes_sims/meta/chr12_rec_rate_hg18.
 ex_file = "/home/murillor/projects/greatapes_sims/meta/chr12_exons_hg18.tsv"
 overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
 #path to slim recipe
-recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
+recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_test.slim"
 nreps=1
-rescale_factor = 1/50
+rescale_factor = 1
+burn_gen = 2 # burn_gen N gens of burnin
 
 #setting some parameters
-L=20000000
+#L=[500000, 1000000, 2000000,4000000]
+L=[1000000]
 sample_size=10
-win_size=1000000
+win_size=100000
 total_mu = 1.66e-8/rescale_factor
 # proportions should be fractions
-delprops = [0]
+delprops = [0.6]
 posprops = [0]
-delcoefs = [0]
+delcoefs = [-0.03]
 poscoefs = [0]
-sel_params = {"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "poscoef":poscoefs}
+sel_params = {"L":L,"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "poscoef":poscoefs}
 # cols with params
 pars = ["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens"]
 # suck up params and hash them
@@ -55,11 +57,12 @@ edges_meta = pd.read_csv(edges_path,sep="\t")
 edges_meta["edge"] = edges_meta["edge"].str.replace('_','-')
 edges_meta["parent"] = edges_meta["parent"].str.replace('_','-')
 #print(edges_meta)
-edges_info = edges_meta[["edge","parent","N","gens"]]
+edges_info = edges_meta[["edge","parent","N","gens"]].copy()
 
 #edges_info.gens=1000 #this is here just for testing purposes
 edges_info.N=np.ceil(edges_info.N*rescale_factor).astype(int)
 rescale_factor = str(rescale_factor)
+edges_info.iloc[0,3] = edges_info.iloc[0,2]*burn_gen
 #making a data frame that is going to hold all combinations of parameters
 tmp=pd.DataFrame()
 for i, row in edges_info.iterrows():
@@ -78,12 +81,12 @@ use_param_comb = np.logical_and(np.logical_or(both_p,both_p_zero),np.logical_or(
 tmp = tmp[use_param_comb]
 
 #putting everything on our master data.frame (all params)
-tmp["L"] = L
+#tmp["L"] = L
 tmp["mu"] = (tmp.posprop+tmp.delprop)*total_mu
 tmp["siminterval"] = np.where(tmp.N>500000,"500","")
 tmp["exonfile"] = ex_file
 tmp["recfile"] = rec_file
-tmp["numid"] = tmp.groupby(["delprop","delcoef","posprop","poscoef"]).grouper.label_info
+tmp["numid"] = tmp.groupby(["L","delprop","delcoef","posprop","poscoef"]).grouper.label_info
 rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
 tmp["rand_id"] = rands[tmp["numid"].tolist()]
 tmp["outfile_pre"] = tmp.edge+"_"+tmp.rand_id
@@ -129,26 +132,31 @@ multi = [out_path+s+"_"+rid+"_rep"+str(rep).zfill(pad)+"_multistats.tsv" for s i
 ruleorder: root > branch > overlay
 
 rule all:
-    input:  single+multi #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
+    input:  overl#single+multi #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
 
 rule multi_pop_stats:
     input: spp1="../../output/{edge1}_{rand_id}_rep{rep}_overl.trees", spp2="../../output/{edge2}_{rand_id}_rep{rep}_overl.trees" 
     output: "../../output/sp1_{edge1}_sp2_{edge2}_{rand_id}_rep{rep}_multistats.tsv"
     params: win_size=win_size, n=sample_size, L=L
+    resources: mem_mb=32000, runtime=10*24*60
+    threads: 2
     shell: "python multipop_stats_from_trees.py {input.spp1},{input.spp2} {output} {wildcards.edge1},{wildcards.edge2} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n}"
 
 rule single_pop_stats:
     input: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees"
     output: "../../output/{edge}_{rand_id}_rep{rep}_singlestats.tsv"
-    params: win_size=win_size,  n=sample_size, L=L
+    params: win_size=win_size,  n=sample_size, L = lambda wildcards: tmp[(tmp.edge=="great-     apes") & (tmp.rand_id==wildcards.rand_id)].L.item()
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.singlestats.benchmark.txt"
+    resources: mem_mb=24000, runtime=10*24*60
+    threads: 2
     shell: "python stats_from_tree.py {input} {output} {wildcards.edge} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n}"
 
 rule overlay:
     input: "../../output/{edge}_{rand_id}_rep{rep}.trees"
-    params: mut_rate=total_mu, recapN=edges_meta[edges_meta.edge=="great-apes"].N.item(),
-            rec_hap_path=rec_hap_file, ex_file_path=ex_file, sel_mut_rate=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].mu.item()
-    output: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees" 
+    params: mut_rate=total_mu, recapN=edges_meta[edges_meta.edge=="great-apes"].N.item(),rec_hap_path=rec_hap_file, ex_file_path=ex_file, sel_mut_rate=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].mu.item()
+    output: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees"
+    resources: mem_mb=128000, runtime=10*24*60
+    threads: 2
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.overl.benchmark.txt"
     shell: "python overlay.py {input} {output} {params.mut_rate} {params.recapN} {params.rec_hap_path} {params.ex_file_path} {params.sel_mut_rate}"
 
@@ -156,6 +164,9 @@ rule root:
     params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item(), rescale=rescale_factor
     output: "../../output/great-apes_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/great-apes_{rand_id}_rep{rep}.slim.benchmark.txt"
+    log: "great-apes_{rand_id}_rep{rep}.log"
+    resources: mem_mb=56000, runtime=10*24*60
+    threads: 2
     shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' -d rescf='{params.rescale}' {params.recipe}"
 
 rule branch:
@@ -164,4 +175,7 @@ rule branch:
     wildcard_constraints: edge="(?!great-apes).*", rep="[0-9]+"
     output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
+    log: "{edge}_{rand_id}_rep{rep}.log"
+    resources: mem_mb=64000, runtime=10*24*60
+    threads: 2
     shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' -d rescf='{params.rescale}' {params.recipe}"
