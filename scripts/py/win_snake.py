@@ -43,7 +43,7 @@ chrom=["chr12"]
 padding=np.array([0])
 sample_size=10
 win_size=1000
-L=list(win_size+2*paddingi)
+L=list(win_size+2*padding)
 total_mu = 1.66e-8/rescale_factor
 # proportions should be fractions
 delprops = [0.6]
@@ -109,17 +109,25 @@ for c in chrom:
     windows.columns=["start","end"]
     windows['chr']=c
     windowed=pd.concat([windowed,windows])
+windowed_tmp = (
+      tmp.assign(key=1)
+      .merge(windowed.assign(key=1), on="key")
+      .drop("key", axis=1)
 
+)
+windowed_tmp=windowed_tmp.loc[windowed_tmp.start<2.1*win_size]
+tmp = windowed_tmp
 #putting everything on our master data.frame (all params)
 #tmp["L"] = L
+tmp['padding'] = (tmp.L-win_size)/2
 tmp["mu"] = (tmp.posprop+tmp.delprop)*total_mu
 tmp["siminterval"] = np.where(tmp.N>500000,"500","")
 tmp["exonfile"] = ex_file
 tmp["recfile"] = rec_file
-tmp["numid"] = tmp.groupby(["L","delprop","delcoef","posprop","poscoef"]).grouper.label_info
+tmp["numid"] = tmp.groupby(["chr","start","end","L","delprop","delcoef","posprop","poscoef"]).grouper.label_info
 rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
 tmp["rand_id"] = rands[tmp["numid"].tolist()]
-tmp["outfile_pre"] = tmp.edge+"_"+tmp.rand_id
+tmp["outfile_pre"] = tmp.edge+"_"+tmp.rand_id+"_"+tmp.chr+"_"+tmp.start.astype('str')+"_"+tmp.end.astype('str')
 assert not tmp.outfile_pre.duplicated().any(), "one of the outfile names is duplicated"
 tmp.outfile_pre=out_path+tmp.outfile_pre
 tmp.reset_index(drop=True, inplace=True)
@@ -191,7 +199,10 @@ rule overlay:
     shell: "python overlay.py {input} {output} {params.mut_rate} {params.recapN} {params.rec_hap_path} {params.ex_file_path} {params.sel_mut_rate}"
 
 rule root:
+    input: lambda wildcards: "../../meta/"+tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].chr+
+#### parei aquiii!
     params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item(), rescale=rescale_factor
+    output: "../../output/great-apes_{rand_id}_rep{rep}.trees"
     output: "../../output/great-apes_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/great-apes_{rand_id}_rep{rep}.slim.benchmark.txt"
     log: "great-apes_{rand_id}_rep{rep}.log"
@@ -205,7 +216,6 @@ rule branch:
     wildcard_constraints: edge="(?!great-apes).*", rep="[0-9]+"
     output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
-    log: "{edge}_{rand_id}_rep{rep}.log"
     resources: mem_mb=64000, runtime=10*24*60
     threads: 2
     shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' -d rescf='{params.rescale}' {params.recipe}"
