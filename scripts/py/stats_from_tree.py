@@ -26,8 +26,8 @@ rep = sys.argv[5]
 win_size = int(sys.argv[6])
 L = int(sys.argv[7])
 n = int(sys.argv[8])
-if len(sys.argv > 9:
-    center = True
+if len(sys.argv > 9):
+    center = sys.argv[9]=="True"
 print(rand_id)
 print(n)
 stats = single_pop_stats_from_ts(ts_path, L, win_size, n, center)
