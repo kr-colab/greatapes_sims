@@ -48,7 +48,7 @@ def acs_from_ts(ts, n=0):
     print(len(acs))
     return(acs, pos)
 
-def single_pop_stats_from_ts(ts_path, L, win_size, n):
+def single_pop_stats_from_ts(ts_path, L, win_size, n, center=False):
     print("entrei")
     ts = pyslim.load(ts_path)
     s1 = timer()
@@ -57,15 +57,21 @@ def single_pop_stats_from_ts(ts_path, L, win_size, n):
     ac = acs[0]
     tmp = pd.DataFrame()
     print("Calculating single population stats...", flush=True)
-    pi, windows, n_bases, counts = allel.windowed_diversity(pos, ac, size=win_size,           start=1, stop=L)
-    D, windows, counts = allel.windowed_tajima_d(pos, ac, size=win_size, start=1, stop=L)
+    if center:
+        start = 1 + ((L-win_size)/2)
+        stop = start + win_size
+    else:
+        start = 1
+        stop = L
+    pi, windows, n_bases, counts = allel.windowed_diversity(pos, ac, size=win_size, start=start, stop=stop)
+    D, windows, counts = allel.windowed_tajima_d(pos, ac, size=win_size, start=start, stop=stop)
     tmp['start'] = windows[:,0]
     tmp['end'] = windows[:,1]
     tmp['n_acc'] = n_bases
     tmp['pi'] = pi
     tmp['tajd'] = D
     s2 = timer()
-    print(("Calculated single pop stats... Time elapsed (min):"+str(round((s2-s1)/60,         3))), flush=True)
+    print(("Calculated single pop stats... Time elapsed (min):"+str(round((s2-s1)/60, 3))), flush=True)
     s1=timer()
     return(tmp)
 
