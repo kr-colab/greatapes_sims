@@ -1,5 +1,14 @@
 '''
-input: tree_path(str), out_path(str), spp(str), rand_id(str), win_size(int), L(int)
+input: tree_path(str), out_path(str), spp(str), rand_id(str), win_size(int), L(int), n(int), center(bool)
+path to the tree sequence
+path to the output where single_pop_all.tsv will be saved
+spp is the species name to annotate the table
+rand_id the identifier to the simulation params
+rep replicate number
+win_size is the window size
+L is the chromosome size
+n is the size of the sample with which stats will be calculated
+center determines if only one centered window will be used to calculate stats on
 output: csv with all stats(long) for all windows (append existing)
 '''
 import sys
@@ -7,7 +16,6 @@ import os.path
 from stats_funcs import *
 import numpy as np
 print("input: tree_path(str), filename(str), spp(str), rand_id(str), rep(str), win_size(int), L(int), n(int), center(bool)")
-# if center is True, then stats will be calculated only for one window center in the chr L
 assert len(sys.argv) < 9, "Not enough input was provided."
 center=False
 ts_path = sys.argv[1]
