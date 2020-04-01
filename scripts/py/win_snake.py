@@ -14,7 +14,7 @@ def expand_grid(data_dict):
 def id_generator(size=15, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
 
-def get_par_string(row, col_names=["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef","posprop", "poscoef", "N", "gens"]):
+def get_par_string(row, col_names=["siminterval", "L", "mu","delprop", "delcoef","posprop", "poscoef", "N", "gens"]):
     row_values = row.values.astype('str').tolist()
     return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in                  range(len(col_names))]))
 
@@ -52,7 +52,7 @@ delcoefs = [-0.03]
 poscoefs = [0]
 sel_params = {"L":L,"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "poscoef":poscoefs}
 # cols with params
-pars = ["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens"]
+pars = ["siminterval", "L", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens"]
 # suck up params and hash them
 edges_meta = pd.read_csv(edges_path,sep="\t")
 edges_meta["edge"] = edges_meta["edge"].str.replace('_','-')
@@ -100,8 +100,6 @@ for c in chrom:
             # last window
             window_stop = stop
             last = True
-        else:
-            window_stop -= 1
         windows.append([window_start, window_stop])
         if last:
             break
@@ -109,13 +107,16 @@ for c in chrom:
     windows.columns=["start","end"]
     windows['chr']=c
     windowed=pd.concat([windowed,windows])
+
+#sampling just the first 3 windows for now
+windowed=windowed.loc[windowed.start<2.1*win_size]
+
 windowed_tmp = (
       tmp.assign(key=1)
       .merge(windowed.assign(key=1), on="key")
       .drop("key", axis=1)
 
 )
-windowed_tmp=windowed_tmp.loc[windowed_tmp.start<2.1*win_size]
 tmp = windowed_tmp
 #putting everything on our master data.frame (all params)
 #tmp["L"] = L
@@ -164,7 +165,8 @@ print(terminals)
 pairs = list(itertools.combinations(terminals,2))
 pair_strings = ["sp1_"+spp[0]+"_sp2_"+spp[1] for spp in pairs]
 print(pairs)
-multi = [out_path+s+"_"+rid+"_rep"+str(rep).zfill(pad)+"_multistats.tsv" for s in pair_strings for rid in rands for rep in range(nreps)]
+wins = (windowed.chr+"_"+windowed.start.astype("str")+"_"+windowed.end.astype("str")).to_list()
+multi = [out_path+s+"_"+rid+"_"+w+"_rep"+str(rep).zfill(pad)+"_multistats.tsv" for s in pair_strings for rid in rands for w in wins  for rep in range(nreps)]
 
 # this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
 ruleorder: root > branch > overlay > single_pop_stats > multi_pop_stats
@@ -173,16 +175,16 @@ rule all:
     input:  overl#single+multi #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
 
 rule multi_pop_stats:
-    input: spp1="../../output/{edge1}_{rand_id}_rep{rep}_overl.trees", spp2="../../output/{edge2}_{rand_id}_rep{rep}_overl.trees"
-    output: "../../output/sp1_{edge1}_sp2_{edge2}_{rand_id}_rep{rep}_multistats.tsv"
+    input: spp1="../../output/{edge1}_{rand_id}_{chr}_{start}_{end}_rep{rep}_overl.trees", spp2="../../output/{edge2}_{rand_id}_{chr}_{start}_{end}_rep{rep}_overl.trees"
+    output: "../../output/sp1_{edge1}_sp2_{edge2}_{rand_id}_{chr}_{start}_{end}_rep{rep}_multistats.tsv"
     params: win_size=win_size, n=sample_size, L = lambda wildcards: tmp[(tmp.edge==wildcards.edge1) & (tmp.rand_id==wildcards.rand_id)].L.item()
     resources: mem_mb=32000, runtime=10*24*60
     threads: 2
     shell: "python multipop_stats_from_trees.py {input.spp1},{input.spp2} {output} {wildcards.edge1},{wildcards.edge2} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n}"
 
 rule single_pop_stats:
-    input: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees"
-    output: "../../output/{edge}_{rand_id}_rep{rep}_singlestats.tsv"
+    input: "../../output/{edge}_{rand_id}_{chr}_{start}_{end}_rep{rep}_overl.trees"
+    output: "../../output/{edge}_{rand_id}_{chr}_{start}_{end}_rep{rep}_singlestats.tsv"
     params: win_size=win_size,  n=sample_size, L = lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].L.item()
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.singlestats.benchmark.txt"
     resources: mem_mb=24000, runtime=10*24*60
@@ -190,7 +192,7 @@ rule single_pop_stats:
     shell: "python stats_from_tree.py {input} {output} {wildcards.edge} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n}"
 
 rule overlay:
-    input: "../../output/{edge}_{rand_id}_rep{rep}.trees"
+    input: "../../output/{edge}_{rand_id}_{chr}_{start}_{end}_rep{rep}.trees"
     params: mut_rate=total_mu, recapN=edges_meta[edges_meta.edge=="great-apes"].N.item(),rec_hap_path=rec_hap_file, ex_file_path=ex_file, sel_mut_rate=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].mu.item()
     output: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees"
     resources: mem_mb=128000, runtime=10*24*60
@@ -199,11 +201,10 @@ rule overlay:
     shell: "python overlay.py {input} {output} {params.mut_rate} {params.recapN} {params.rec_hap_path} {params.ex_file_path} {params.sel_mut_rate}"
 
 rule root:
-    input: lambda wildcards: "../../meta/"+tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].chr+
+    input: annot_file = lambda wildcards: "../../meta/"+tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].chr+"_exons_hg18.tsv"
 #### parei aquiii!
     params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item(), rescale=rescale_factor
-    output: "../../output/great-apes_{rand_id}_rep{rep}.trees"
-    output: "../../output/great-apes_{rand_id}_rep{rep}.trees"
+    output: "../../output/great-apes_{rand_id}_{chr}_{start}_{end}_rep{rep}.trees"
     benchmark: "../../benchmarks/great-apes_{rand_id}_rep{rep}.slim.benchmark.txt"
     log: "great-apes_{rand_id}_rep{rep}.log"
     resources: mem_mb=56000, runtime=10*24*60
