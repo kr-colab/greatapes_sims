@@ -16,7 +16,7 @@ def id_generator(size=15, chars=string.ascii_uppercase + string.digits):
 
 def get_par_string(row, col_names=["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef","posprop", "poscoef", "N", "gens"]):
     row_values = row.values.astype('str').tolist()
-    return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in                  range(len(col_names))]))
+    return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in range(len(col_names))]))
 
 seed=1384393
 random.seed(seed)
@@ -39,16 +39,16 @@ rescale_factor = 1
 burn_gen = 2 # burn_gen N gens of burnin
 
 #setting some parameters
-#L=[500000, 1000000, 2000000,4000000]
-L=[1000000]
+L=[132349534]
+#L=[1000000]
 sample_size=10
-win_size=100000
+win_size=10
 total_mu = 1.66e-8/rescale_factor
 # proportions should be fractions
-delprops = [0.6]
-posprops = [0]
+delprops = [0.5]
+posprops = [0.01]
 delcoefs = [-0.03]
-poscoefs = [0]
+poscoefs = [0.01]
 sel_params = {"L":L,"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "poscoef":poscoefs}
 # cols with params
 pars = ["siminterval", "L", "recfile", "exonfile", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens"]
@@ -62,7 +62,9 @@ edges_info = edges_meta[["edge","parent","N","gens"]].copy()
 #edges_info.gens=1000 #this is here just for testing purposes
 edges_info.N=np.ceil(edges_info.N*rescale_factor).astype(int)
 rescale_factor = str(rescale_factor)
+edges_info.iloc[0,2]=50000
 edges_info.iloc[0,3] = edges_info.iloc[0,2]*burn_gen
+
 #making a data frame that is going to hold all combinations of parameters
 tmp=pd.DataFrame()
 for i, row in edges_info.iterrows():
@@ -129,15 +131,15 @@ print(pairs)
 multi = [out_path+s+"_"+rid+"_rep"+str(rep).zfill(pad)+"_multistats.tsv" for s in pair_strings for rid in rands for rep in range(nreps)]
 
 # this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
-ruleorder: root > branch > overlay
+ruleorder: root > branch > overlay > single_pop_stats > multi_pop_stats
 
 rule all:
-    input:  overl#single+multi #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
+    input:  overl+single+multi #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
 
 rule multi_pop_stats:
     input: spp1="../../output/{edge1}_{rand_id}_rep{rep}_overl.trees", spp2="../../output/{edge2}_{rand_id}_rep{rep}_overl.trees" 
     output: "../../output/sp1_{edge1}_sp2_{edge2}_{rand_id}_rep{rep}_multistats.tsv"
-    params: win_size=win_size, n=sample_size, L=L
+    params: win_size=win_size, n=sample_size, L = lambda wildcards: tmp[(tmp.edge==wildcards.edge1) & (tmp.rand_id==wildcards.rand_id)].L.item()
     resources: mem_mb=32000, runtime=10*24*60
     threads: 2
     shell: "python multipop_stats_from_trees.py {input.spp1},{input.spp2} {output} {wildcards.edge1},{wildcards.edge2} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n}"
@@ -145,7 +147,7 @@ rule multi_pop_stats:
 rule single_pop_stats:
     input: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees"
     output: "../../output/{edge}_{rand_id}_rep{rep}_singlestats.tsv"
-    params: win_size=win_size,  n=sample_size, L = lambda wildcards: tmp[(tmp.edge=="great-     apes") & (tmp.rand_id==wildcards.rand_id)].L.item()
+    params: win_size=win_size,  n=sample_size, L = lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].L.item()
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.singlestats.benchmark.txt"
     resources: mem_mb=24000, runtime=10*24*60
     threads: 2
