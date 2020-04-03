@@ -65,6 +65,11 @@ initialize() {
         ends=ends[ends<asInteger(L)];
         ends[length(ends)-1] = asInteger(L)-1;
     }
+    // CASE WHERE LAST END IS SMALLER THAN REC MAP
+    if (ends[length(ends)-1]< asInteger(L)-1) {
+        ends = c(ends,asInteger(L)-1);
+        rates=c(rates,0.0);
+    }
     rates = (rates * 1e-8)/rf;
     initializeRecombinationRate(rates,ends);
 }
@@ -84,12 +89,10 @@ initialize() {
     // rescheduling the time to end simulation
     sim.rescheduleScriptBlock(s0, generations=sim.generation+asInteger(gens));
     //schedule sampling in equaly spaced intervals
-    intervals = 1/2;
+    intervals = 1:3/4;
     sim.rescheduleScriptBlock(s1, generations=sim.generation+asInteger(ceil(intervals*asInteger(gens))));
     // scheduling saving output + progress messages
-    if (asInteger(gens) >= 50000) {
-        sim.rescheduleScriptBlock(s2, generations=sim.generation+seq(50000,asInteger(gens), 50000));
-    }
+    sim.rescheduleScriptBlock(s2, generations=sim.generation+seq(10000,asInteger(gens), 10000));
 }
 
 // final event: save tree seq
@@ -107,7 +110,7 @@ s1 5 late() {
 
 // progress + saving trees
 s2 5 late() {
-    if (sim.generation % 50000 == 0) {
+    if (sim.generation % 10000 == 0) {
         catn("You got to generation "+sim.generation);
     }
     if (sim.generation % 100000 == 0) {
