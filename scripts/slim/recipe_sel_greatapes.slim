@@ -34,7 +34,8 @@ initialize() {
         if(coord[1] > asInteger(L)-1) {
             coord[1] = asInteger(L)-1;
         }
-        initializeGenomicElement(g1, coord[0], coord[1]);
+        // the -1 in the end coordinate is bc bed are not inclusive, but slim is
+        initializeGenomicElement(g1, coord[0], coord[1]-1);
         last = coord[1];
         i=i+1;
     }
