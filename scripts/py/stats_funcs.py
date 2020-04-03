@@ -31,6 +31,7 @@ def acs_from_ts(ts, n=0):
         print(samp_nodes.shape, "shape samp nodes")
         ts = ts.simplify(samp_nodes)
     print("entrei nos acs")
+    print(ts.genotype_matrix())
     hap = allel.HaplotypeArray(ts.genotype_matrix())
     geno = hap.to_genotypes(ploidy=2)
     print("fiz hap and geno matrix")
