@@ -33,7 +33,7 @@ rec_hap_file = "/home/murillor/projects/greatapes_sims/meta/chr12_rec_rate_hg18.
 ex_file = "/home/murillor/projects/greatapes_sims/meta/chr12_exons_hg18.tsv"
 overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
 #path to slim recipe
-recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_test.slim"
+recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
 nreps=1
 rescale_factor = 1
 burn_gen = 2 # burn_gen N gens of burnin
