@@ -16,7 +16,7 @@ def id_generator(size=15, chars=string.ascii_uppercase + string.digits):
 
 def get_par_string(row, col_names=["siminterval", "L", "mu","delprop", "delcoef","posprop", "poscoef", "N", "gens"]):
     row_values = row.values.astype('str').tolist()
-    return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in                  range(len(col_names))]))
+    return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in range(len(col_names))]))
 
 seed=1384393
 random.seed(seed)
@@ -123,14 +123,14 @@ tmp = windowed_tmp
 tmp['padding'] = (tmp.L-win_size)/2
 tmp["mu"] = (tmp.posprop+tmp.delprop)*total_mu
 tmp["siminterval"] = np.where(tmp.N>500000,"500","")
-tmp["exonfile"] = ex_file
-tmp["recfile"] = rec_file
 tmp["numid"] = tmp.groupby(["chr","start","end","L","delprop","delcoef","posprop","poscoef"]).grouper.label_info
 rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
 tmp["rand_id"] = rands[tmp["numid"].tolist()]
 tmp["outfile_pre"] = tmp.edge+"_"+tmp.rand_id+"_"+tmp.chr+"_"+tmp.start.astype('str')+"_"+tmp.end.astype('str')
 assert not tmp.outfile_pre.duplicated().any(), "one of the outfile names is duplicated"
 tmp.outfile_pre=out_path+tmp.outfile_pre
+tmp["exonfile"] = tmp.chr+"_"+tmp.start.astype('str')+"_"+tmp.end.astype('str')+"_exons.tsv"
+tmp["recfile"] = tmp.chr+"_"+tmp.start.astype('str')+"_"+tmp.end.astype('str')+"_recrate.tsv"
 tmp.reset_index(drop=True, inplace=True)
 #finally assembling our parameter string which will be passed to the slim recipe
 tmp["par_string"]=tmp[pars].apply(get_par_string, axis=1)
@@ -174,6 +174,13 @@ ruleorder: root > branch > overlay > single_pop_stats > multi_pop_stats
 rule all:
     input:  overl#single+multi #+ tmp[tmp.edge.isin(terminals)].overl_out.tolist()
 
+rule win_intersect:
+    input: ex=ex_file, rec=rec_file
+    output: ex_f="../../meta/{chr}_{start}_{end}_exons.tsv", rec_f="../../meta/{chr}_{start}_{end}_recrate.tsv"
+    run:
+        shell("bedtools intersect -a {input.ex} -b <(printf '{wildcards.chr}\t{wildcards.start}\t{wildcards.end}\n') | cut -f 1-3 > {output.ex_f}")
+        shell("bedtools intersect -a {input.rec} -b <(printf '{wildcards.chr}\t{wildcards.start}\t{wildcards.end}\n') | cut -f 1-3 > {output.rec_f}")
+
 rule multi_pop_stats:
     input: spp1="../../output/{edge1}_{rand_id}_{chr}_{start}_{end}_rep{rep}_overl.trees", spp2="../../output/{edge2}_{rand_id}_{chr}_{start}_{end}_rep{rep}_overl.trees"
     output: "../../output/sp1_{edge1}_sp2_{edge2}_{rand_id}_{chr}_{start}_{end}_rep{rep}_multistats.tsv"
@@ -202,7 +209,7 @@ rule overlay:
 
 rule root:
     input: annot_file = lambda wildcards: "../../meta/"+tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].chr+"_exons_hg18.tsv"
-#### parei aquiii!
+#### parei aquiii! add win ends
     params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item(), rescale=rescale_factor
     output: "../../output/great-apes_{rand_id}_{chr}_{start}_{end}_rep{rep}.trees"
     benchmark: "../../benchmarks/great-apes_{rand_id}_rep{rep}.slim.benchmark.txt"
