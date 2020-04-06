@@ -40,6 +40,7 @@ for p in paths:
 x = np.arange(len(all_ac))
 combs = list(itertools.combinations(x, 2))
 stats = pd.DataFrame()
+
 for k in range(len(combs)):
     tmp = pd.DataFrame()
     ac1=all_ac[combs[k][0]]
@@ -48,8 +49,8 @@ for k in range(len(combs)):
     pos2=all_pos[combs[k][1]]
     pos = np.unique(np.concatenate((pos1,pos2)))
     pos.sort()
-    new_ac1 = np.full((len(pos),2),0)
-    new_ac2 = np.full((len(pos),2),0)
+    new_ac1 = np.full((len(pos),ac1.shape[1]),0)
+    new_ac2 = np.full((len(pos),ac2.shape[1]),0)
     new_ac1[np.where(np.isin(pos,pos1))] = ac1
     new_ac2[np.where(np.isin(pos,pos2))] = ac2
     n_sampled1 = np.sum(ac1,axis=1)[0]
