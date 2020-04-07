@@ -4,10 +4,9 @@ import numpy as np
 import pyslim
 from stats_funcs import *
 
-print("input: tree_paths_string(str), filename(str), spps_string(str), rand_id(str), rep(str), win_size(int), L(int), n(int), center(bool)")
+print("input: tree_paths_string(str), filename(str), spps_string(str), rand_id(str), rep(str), win_size(int), L(int), n(int), pad(int)")
 assert len(sys.argv) >= 9, "More arguments needed than "+str(len(sys.argv))
 
-center=False
 tree_paths_string = sys.argv[1]
 filename = sys.argv[2]
 spps_string = sys.argv[3]
@@ -16,11 +15,19 @@ rep = sys.argv[5]
 win_size = int(sys.argv[6])
 L = int(sys.argv[7])
 n = int(sys.argv[8])
-if len(sys.argv) > 9:
-	center = sys.argv[9] == "True"
 
-if center:
-	start = 1 + ((L-win_size)/2)
+if len(sys.argv) > 9:
+	pad = int(sys.argv[9])
+else:
+    pad = 0
+
+if pad>0:
+    # dealing with the 1st window in chr case
+    if L < win_size + 2*pad: {
+        start = 1
+    } else {
+	    start = pad + 1
+    }
 	stop = start + win_size
 else:
 	start = 1
@@ -71,5 +78,6 @@ for k in range(len(combs)):
     tmp['rand_id'] = rand_id
     tmp['rep'] = rep
     stats=pd.concat([stats,tmp])
+
 stats.to_csv("multi_pop_all.tsv", header=(not os.path.exists("multi_pop_all.tsv")), index=False, mode="a")
-stats.to_csv(filename, sep="\t", header=(not os.path.exists(filename)), index=False,         mode="a")
+stats.to_csv(filename, sep="\t", header=(not os.path.exists(filename)), index=False, mode="a")

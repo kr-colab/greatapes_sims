@@ -49,7 +49,7 @@ def acs_from_ts(ts, n=0):
     print(len(acs))
     return(acs, pos)
 
-def single_pop_stats_from_ts(ts_path, L, win_size, n, center=False):
+def single_pop_stats_from_ts(ts_path, L, win_size, n, pad=0):
     print("entrei")
     ts = pyslim.load(ts_path)
     s1 = timer()
@@ -58,12 +58,19 @@ def single_pop_stats_from_ts(ts_path, L, win_size, n, center=False):
     ac = acs[0]
     tmp = pd.DataFrame()
     print("Calculating single population stats...", flush=True)
-    if center:
-        start = 1 + ((L-win_size)/2)
+
+    if pad>0:
+        # dealing with the 1st window in chr case
+        if L < win_size + 2*pad: {
+            start = 1
+        } else {
+            start = pad + 1
+        }
         stop = start + win_size
     else:
         start = 1
         stop = L
+
     pi, windows, n_bases, counts = allel.windowed_diversity(pos, ac, size=win_size, start=start, stop=stop)
     D, windows, counts = allel.windowed_tajima_d(pos, ac, size=win_size, start=start, stop=stop)
     tmp['start'] = windows[:,0]
