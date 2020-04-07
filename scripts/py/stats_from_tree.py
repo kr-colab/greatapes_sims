@@ -8,16 +8,17 @@ rep replicate number
 win_size is the window size
 L is the chromosome size
 n is the size of the sample with which stats will be calculated
-center determines if only one centered window will be used to calculate stats on
+pad determines if only one centered window will be used to calculate stats on
 output: csv with all stats(long) for all windows (append existing)
 '''
 import sys
 import os.path
 from stats_funcs import *
 import numpy as np
-print("input: tree_path(str), filename(str), spp(str), rand_id(str), rep(str), win_size(int), L(int), n(int), center(bool)")
+
+print("input: tree_path(str), filename(str), spp(str), rand_id(str), rep(str), win_size(int), L(int), n(int), pad(int)")
 assert len(sys.argv) >= 9, "Not enough input was provided."
-center=False
+
 ts_path = sys.argv[1]
 filename = sys.argv[2]
 spp = sys.argv[3]
@@ -27,12 +28,16 @@ win_size = int(sys.argv[6])
 L = int(sys.argv[7])
 n = int(sys.argv[8])
 if len(sys.argv) > 9:
-    center = (sys.argv[9]=="True")
+    pad = int(sys.argv[9])
+else:
+    pad = 0
 print(rand_id)
 print(n)
-stats = single_pop_stats_from_ts(ts_path, L, win_size, n, center)
+
+stats = single_pop_stats_from_ts(ts_path, L, win_size, n, pad)
+
 stats['spp'] = spp
 stats['rand_id'] = rand_id
 stats['rep'] = rep
 stats.to_csv("single_pop_all.tsv", header=(not os.path.exists("single_pop_all.tsv")), index=False, mode="a")
-stats.to_csv(filename, sep="\t", header=(not os.path.exists(filename)), index=False,         mode="a")
+stats.to_csv(filename, sep="\t", header=(not os.path.exists(filename)), index=False, mode="a")
