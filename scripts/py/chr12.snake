@@ -42,7 +42,7 @@ burn_gen = 2 # burn_gen N gens of burnin
 L=[132349534]
 #L=[1000000]
 sample_size=10
-win_size=10
+win_size=1000000
 total_mu = 1.66e-8/rescale_factor
 # proportions should be fractions
 delprops = [0.5]
