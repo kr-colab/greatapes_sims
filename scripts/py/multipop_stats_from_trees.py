@@ -17,8 +17,10 @@ L = int(sys.argv[7])
 n = int(sys.argv[8])
 
 if len(sys.argv) > 9:
-	pad = int(sys.argv[9])
+    wstr="_win"
+    pad = int(sys.argv[9])
 else:
+    wstr=""
     pad = 0
 
 if pad>0:
@@ -28,7 +30,7 @@ if pad>0:
     } else {
 	    start = pad + 1
     }
-	stop = start + win_size
+    stop = start + win_size
 else:
 	start = 1
 	stop = L
@@ -79,5 +81,5 @@ for k in range(len(combs)):
     tmp['rep'] = rep
     stats=pd.concat([stats,tmp])
 
-stats.to_csv("multi_pop_all.tsv", header=(not os.path.exists("multi_pop_all.tsv")), index=False, mode="a")
+stats.to_csv("multi_pop_all"+wstr+".tsv", header=(not os.path.exists("multi_pop_all"+wstr+".tsv")), index=False, mode="a")
 stats.to_csv(filename, sep="\t", header=(not os.path.exists(filename)), index=False, mode="a")
