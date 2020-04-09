@@ -99,7 +99,8 @@ tmp.reset_index(drop=True, inplace=True)
 tmp["par_string"]=tmp[pars].apply(get_par_string, axis=1)
 
 # writing tmp to file
-today = dt.datetime.today().strftime('%m%d%Y')
+
+today =dt.datetime.today().strftime('%H%M_%d%m%Y') 
 tmp["date"] = today
 tmp.to_csv("../../output/sims_info.tsv", sep="\t", header=False, index=False, mode="a")
 
