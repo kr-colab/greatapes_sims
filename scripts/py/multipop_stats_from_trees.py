@@ -25,11 +25,10 @@ else:
 
 if pad>0:
     # dealing with the 1st window in chr case
-    if L < win_size + 2*pad: {
+    if L < win_size + 2*pad:
         start = 1
-    } else {
+    else:
 	    start = pad + 1
-    }
     stop = start + win_size
 else:
 	start = 1

@@ -42,11 +42,11 @@ ex_file = "/home/murillor/projects/greatapes_sims/meta/exons_hg18.bed"
 chr_file = "/home/murillor/projects/greatapes_sims/meta/hg18.chrom.sizes"
 overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
 #path to slim recipe
-recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_test.slim"
+recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
 nreps=1
 rescale_factor = 1
 burn_gen = 2 # burn_gen N gens of burnin
-n_sampled_wins = 1
+n_sampled_wins = 5
 
 #setting some parameters
 chrom=["chr12"]

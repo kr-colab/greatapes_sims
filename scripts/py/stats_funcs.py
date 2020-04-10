@@ -61,11 +61,10 @@ def single_pop_stats_from_ts(ts_path, L, win_size, n, pad=0):
 
     if pad>0:
         # dealing with the 1st window in chr case
-        if L < win_size + 2*pad: {
+        if L < win_size + 2*pad:
             start = 1
-        } else {
+        else:
             start = pad + 1
-        }
         stop = start + win_size
     else:
         start = 1
