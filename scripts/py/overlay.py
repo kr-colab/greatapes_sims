@@ -93,5 +93,8 @@ if (len(sys.argv) > 4):
         ex_file_path = sys.argv[6]
         rec_hap_path = sys.argv[5]
         sel_mut_rate = sys.argv[7]
-
-overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN)#, rec_hap_path), ex_file_path, sel_mut_rate)
+        overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN, rec_hap_path, ex_file_path, sel_mut_rate)
+    else:
+        overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN)
+else:
+    overlay_varmut(in_ts_path, out_ts_path, mut_rate)
