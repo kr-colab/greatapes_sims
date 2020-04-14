@@ -1,0 +1,9 @@
+__default__:
+    time: 2-00:00:00
+    nodes: 1
+    ntasks: 1
+    account: "kernlab"
+    partition: "kern"
+    job-name: "{rule}"
+    output: "log/{rule}_{wildcards}_%j.out"
+    error: "log/{rule}_{wildcards}_%j.err"
