@@ -38,7 +38,7 @@ out_path = "../../output/"
 #path to tsv file with recombination rates
 rec_file = "/home/murillor/projects/greatapes_sims/meta/rec_rate_hg18.txt"
 #path to tsv with exon annotations
-ex_file = "/home/murillor/projects/greatapes_sims/meta/exons_hg18.bed"
+ex_file = "/home/murillor/projects/greatapes_sims/meta/merged_exons_hg18.bed"
 chr_file = "/home/murillor/projects/greatapes_sims/meta/hg18.chrom.sizes"
 overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
 #path to slim recipe
