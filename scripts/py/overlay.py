@@ -2,6 +2,7 @@ import allel
 import subprocess, msprime, pyslim
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import os
 import random
 import re
@@ -28,7 +29,9 @@ def remove_mutations(ts, starts, ends, prop):
     '''
     pos = ts.tables.sites.position #getting the positions of all sites
     # you don't want to remove mutations that happened in the neutral recapitation period.
-    is_post_recap = ts.tables.nodes.time[ts.tables.mutations.node] < ts.slim_generation
+    is_post_recap = np.repeat(False, ts.num_sites)
+    temp = ts.tables.nodes.time[ts.tables.mutations.node] < ts.slim_generation
+    is_post_recap[ts.tables.mutations.site] = temp
     is_msp = (np.diff(ts.tables.mutations.metadata_offset) == 0) #getting which mutations are from msprime
     #but we want to know which sites are from msprime
     is_msp_site = np.repeat(False, ts.num_sites)
@@ -55,10 +58,9 @@ def recap(ts, recapN, rec_hap_path=""):
     return(recapped)
 
 def remove_extra(ts, ex_file_path, mut_rate, sel_mut_rate, slim_gen):
-    assert slim_gen == ts.slim_generation, "You shouldn't simplify the tree before    running remove_mutations."
     prop_remove = sel_mut_rate/mut_rate
     exons = pd.read_csv(ex_file_path,sep="\t")
-    ts_removed = remove_mutations(ts, exons.iloc[:,1].to_numpy(), exons.iloc[:,2])
+    ts_removed = remove_mutations(pyslim.SlimTreeSequence(ts), exons.iloc[:,1].to_numpy(), exons.iloc[:,2].to_numpy(), prop_remove)
     print("Removed extra "+str(prop_remove*100)+"% of mutations within the specified      regions...")
     return(ts_removed)
 
@@ -92,7 +94,7 @@ if (len(sys.argv) > 4):
     if (len(sys.argv)>6):
         ex_file_path = sys.argv[6]
         rec_hap_path = sys.argv[5]
-        sel_mut_rate = sys.argv[7]
+        sel_mut_rate = float(sys.argv[7])
         overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN, rec_hap_path, ex_file_path, sel_mut_rate)
     else:
         overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN)
