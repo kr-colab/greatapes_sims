@@ -13,16 +13,18 @@ spps_string = sys.argv[3]
 rand_id = sys.argv[4]
 rep = sys.argv[5]
 win_size = int(sys.argv[6])
-L = int(sys.argv[7])
+L = int(float(sys.argv[7]))
 n = int(sys.argv[8])
 
+# this is dealing with the windowed sims
 if len(sys.argv) > 9:
     wstr="_win"
-    pad = int(sys.argv[9])
+    pad = int(float(sys.argv[9]))
 else:
     wstr=""
     pad = 0
 
+# figuring out start and stop for dxy calcs
 if pad>0:
     # dealing with the 1st window in chr case
     if L < win_size + 2*pad:
@@ -37,6 +39,7 @@ else:
 paths = tree_paths_string.split(",")
 spps = spps_string.split(",")
 
+# getting the allele count arrays and pos from each ts
 all_ac=[]
 all_pos=[]
 for p in paths:
@@ -49,24 +52,28 @@ x = np.arange(len(all_ac))
 combs = list(itertools.combinations(x, 2))
 stats = pd.DataFrame()
 
+# looping through pairs of combinations to calc dxy
 for k in range(len(combs)):
     tmp = pd.DataFrame()
     ac1=all_ac[combs[k][0]]
     pos1=all_pos[combs[k][0]]
     ac2=all_ac[combs[k][1]]
     pos2=all_pos[combs[k][1]]
+    # joining both position arrays and getting unique
     pos = np.unique(np.concatenate((pos1,pos2)))
     pos.sort()
+    # new ac arrays should be the same length
     new_ac1 = np.full((len(pos),ac1.shape[1]),0)
     new_ac2 = np.full((len(pos),ac2.shape[1]),0)
+    # getting places where the new array has the positions in the old array
     new_ac1[np.where(np.isin(pos,pos1))] = ac1
     new_ac2[np.where(np.isin(pos,pos2))] = ac2
     n_sampled1 = np.sum(ac1,axis=1)[0]
     n_sampled2 = np.sum(ac2,axis=1)[0]
-# filling out the empty genotypes, which should be fixed to the reference alleles
+# filling out the empty genotypes, which should be fixed to the ancestral alleles
 # if a different allele fixed, then the genotype matrix return by tskit would be e.g. [1,...,1]
     id_invar1 = np.where(np.sum(new_ac1,axis=1)==0)[0]
-    id_invar2 = np.where(np.sum(new_ac1,axis=1)==0)[0]
+    id_invar2 = np.where(np.sum(new_ac2,axis=1)==0)[0]
     new_ac1[id_invar1,0]=n_sampled1
     new_ac2[id_invar2,0]=n_sampled2
     dxy, windows, n_bases, counts = allel.windowed_divergence(pos, new_ac1,  new_ac2, size=win_size, start=start, stop=stop)
@@ -80,5 +87,5 @@ for k in range(len(combs)):
     tmp['rep'] = rep
     stats=pd.concat([stats,tmp])
 
-stats.to_csv("multi_pop_all"+wstr+".tsv", header=(not os.path.exists("multi_pop_all"+wstr+".tsv")), index=False, mode="a")
+stats.to_csv(rand_id+"_multi_pop_all"+wstr+".tsv", header=(not os.path.exists(rand_id+"multi_pop_all"+wstr+".tsv")), index=False, mode="a")
 stats.to_csv(filename, sep="\t", header=(not os.path.exists(filename)), index=False, mode="a")
