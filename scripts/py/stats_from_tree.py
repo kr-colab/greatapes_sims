@@ -25,12 +25,12 @@ spp = sys.argv[3]
 rand_id = sys.argv[4]
 rep = sys.argv[5]
 win_size = int(sys.argv[6])
-L = int(sys.argv[7])
+L = int(float(sys.argv[7]))
 n = int(sys.argv[8])
 
 if len(sys.argv) > 9:
     wstr="_win"
-    pad = int(sys.argv[9])
+    pad = int(float(sys.argv[9]))
 else:
     pad = 0
     wstr=""
@@ -43,5 +43,5 @@ stats = single_pop_stats_from_ts(ts_path, L, win_size, n, pad)
 stats['spp'] = spp
 stats['rand_id'] = rand_id
 stats['rep'] = rep
-stats.to_csv("single_pop_all"+wstr+".tsv", header=(not os.path.exists("single_pop_all"+wstr+".tsv")), index=False, mode="a")
+stats.to_csv(rand_id+"_single_pop_all"+wstr+".tsv", header=(not os.path.exists(rand_id+"single_pop_all"+wstr+".tsv")), index=False, mode="a")
 stats.to_csv(filename, sep="\t", header=(not os.path.exists(filename)), index=False, mode="a")
