@@ -42,9 +42,14 @@ for k, n in enumerate(ts2.nodes()):
         continue
     map2new[k]=nid
 
+# mapping parent and child nodes
 map_parent = map2new[ts2.tables.edges.parent]
 map_child = map2new[ts2.tables.edges.child]
+# not sure what this is doing
 map_edges = np.logical_and(map_parent>0, map_child>0)
-
+new_tables.edges.append_columns(left=ts2.tables.edges.left[map_edges])
+new_tables.edges.append_columns(right=ts2.tables.edges.right[map_edges])
+new_tables.edges.append_columns(parent=map_parent[map_edges])
+new_tables.edges.append_columns(child=map_child[map_edges])
 
 
