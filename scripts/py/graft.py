@@ -16,17 +16,35 @@ def get_slim_gens(ts):
 # getting SLiM generations from the provenances
 slim_gens1=get_slim_gens(ts1)
 slim_gens2=get_slim_gens(ts2)
-assert (len(slim_gens1) == len(slim_gens2)) and (slim_gens1[-1]==slim_gens2[-1]) and (slim_gens1[0]==slim_gens2[0]),
-'Based on SLiM generations from the provenances, it does not seem these tree sequences have shared history'
+assert (len(slim_gens1) == len(slim_gens2)) and (slim_gens1[-1]==slim_gens2[-1]) and (slim_gens1[0]==slim_gens2[0]), 'Based on SLiM generations from the provenances, it does not seem these tree sequences have shared history'
 
 # finding where histories diverge
 is_eq = slim_gens1==slim_gens2
 first_diff = np.where(np.diff(is_eq) > 0)[0][0]
 split_time = abs(slim_gens1[first_diff]-slim_gens2[-1])
 
-# first, identifying equivalency between nodes of the two treeseqs
-slim_ids1= get_slim_ids(ts1)
-slim_ids2= get_slim_ids(ts2)
+# we will create a new table collection based on the first treeseq
+# to this, we will append the non-shared nodes
+# to do so, we first need to map the nodes in ts2 to the new
+slim_ids= get_slim_ids(ts1)
+new_tables = ts1.tables
+map2new = np.repeat(-1,ts2.num_nodes)
 
-n_times2 = np.array([n.time for n in ts2.nodes()])
+# adding nodes in ts2 that happened
+for k, n in enumerate(ts2.nodes()):
+    if n.time==split_time:
+        nid = np.where(n.metadata.slim_id==slim_ids)[0]
+        assert len(nid)==1
+        nid=nid[0]
+    elif n.time<split_time:
+        nid=new_tables.nodes.add_row(*n)
+    else:
+        continue
+    map2new[k]=nid
+
+map_parent = map2new[ts2.tables.edges.parent]
+map_child = map2new[ts2.tables.edges.child]
+map_edges = np.logical_and(map_parent>0, map_child>0)
+
+
 
