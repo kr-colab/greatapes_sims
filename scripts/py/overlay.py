@@ -58,6 +58,16 @@ def recap(ts, recapN, rec_hap_path=""):
     return(recapped)
 
 def remove_extra(ts, ex_file_path, mut_rate, sel_mut_rate, slim_gen):
+    '''
+    This function takes a tree sequence in which only non-neutral
+    mutations were simulated in SLiM, all falling within regions
+    specified by the `ex_file_path`, which should be a BED file.
+    Further, the tree sequence has been overlayed with neutral
+    mutations at a constant rate (msprime.mutate). Given these,
+    the function will remove the excess of mutations accumulated
+    within the regions. The proportion to be removed is `sel_mut_rate`
+    divided by `mut_rate`.
+    '''
     prop_remove = sel_mut_rate/mut_rate
     exons = pd.read_csv(ex_file_path,sep="\t")
     ts_removed = remove_mutations(pyslim.SlimTreeSequence(ts), exons.iloc[:,1].to_numpy(), exons.iloc[:,2].to_numpy(), prop_remove)
@@ -65,6 +75,19 @@ def remove_extra(ts, ex_file_path, mut_rate, sel_mut_rate, slim_gen):
     return(ts_removed)
 
 def overlay_varmut(in_ts_path, out_ts_path, mut_rate, recapN="", rec_hap_path="", ex_file_path="", sel_mut_rate=0):
+    '''
+    This function overlays a tree sequence with variable mutation rate.
+    There is the option to perform recapitation before overlaying with
+    mutations. The params `mut_rate` (the total mutation rate) and
+    `sel_mut_rate` are used to determine the amount of neutral
+    mutations to be added to the regions specified within
+    `ex_file_path`. That is, after overlaying the tree sequence, the
+    total mutation rate across regions will be `mut_rate`.
+    `sel_mut_rate` defines the non-neutral mutation rate for the
+    regions of `ex_file_path`.`rec_hap_path` specifies the HapMap
+    style file with the rates of recombination for the region
+    simulated. If not specified, a constat rate of 1e-8 is assumed.
+    '''
     s1=timer()
     ts_slim = pyslim.load(in_ts_path)
     slim_gen = ts_slim.slim_generation
