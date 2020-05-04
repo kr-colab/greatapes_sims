@@ -7,6 +7,7 @@ import datetime as dt
 import math
 
 def win_bed_str(wildcards):
+    """Creates a bed string from the tmp data.frame, getting chrom, start, end and padding"""
     chrom, start, end, padding = tmp.loc[tmp.rand_id==wildcards.rand_id,["chr","start","end","padding"]].iloc[0].to_list()
     if start > padding:
         start = start - padding
@@ -23,7 +24,7 @@ def expand_grid(data_dict):
 def id_generator(size=15, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
 
-def get_par_string(row, col_names=["recfile","exonfile","siminterval", "L", "mu","delprop", "delcoef","posprop", "poscoef", "N", "gens"]):
+def get_par_string(row, col_names=["recfile","exonfile","siminterval", "L", "mu","delprop", "delcoef","posprop", "poscoef", "N", "gens", "rescf"]):
     row_values = row.values.astype('str').tolist()
     return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in range(len(col_names))]))
 
@@ -39,7 +40,7 @@ out_path = "../../output/"
 rec_file = "/home/murillor/projects/greatapes_sims/meta/rec_rate_hg18.txt"
 #path to tsv with exon annotations
 ex_file = "/home/murillor/projects/greatapes_sims/meta/merged_exons_hg18.bed"
-chr_file = "/home/murillor/projects/greatapes_sims/meta/hg18.chrom.sizes"
+#chr_file = "/home/murillor/projects/greatapes_sims/meta/hg18.chrom.sizes"
 overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
 #path to slim recipe
 recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
@@ -54,12 +55,12 @@ padding=np.array([0,100000,500000,1000000])
 sample_size=10
 win_size=1000000
 L=list(win_size+2*padding)
-total_mu = 1.66e-8/rescale_factor
+total_mu = 1.66e-8
 # proportions should be fractions
-delprops = [0.5]
-posprops = [0.01]
-delcoefs = [-0.03]
-poscoefs = [0.01]
+delprops = [0,0.5]
+posprops = [0,0.01]
+delcoefs = [0,-0.03]
+poscoefs = [0,0.01]
 sel_params = {"L":L,"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "poscoef":poscoefs}
 
 # suck up params and hash them
@@ -69,14 +70,15 @@ edges_meta["parent"] = edges_meta["parent"].str.replace('_','-')
 #print(edges_meta)
 edges_info = edges_meta[["edge","parent","N","gens"]].copy()
 
-#edges_info.gens=1000 #this is here just for testing purposes
-edges_info.N=np.ceil(edges_info.N*rescale_factor).astype(int)
-rescale_factor = str(rescale_factor)
+# adjusting the burning time (for greatapes branch)
 edges_info.iloc[0,3] = edges_info.iloc[0,2]*burn_gen
 
 #getting chromosome sizes
-chr_sizes = pd.read_csv(chr_file,sep="\t", header=None)
+#chr_sizes = pd.read_csv(chr_file,sep="\t", header=None)
+rec_rates = pd.read_csv(rec_file, sep="\t")
+chr_sizes = rec_rates.groupby(["#chrom"]).agg({'chromEnd': 'max'}).reset_index()
 chr_sizes.columns=["chr","length"]
+chr_sizes = chr_sizes[chr_sizes['chr']!="chrX"]
 
 #making a data frame that is going to hold all combinations of parameters
 tmp=pd.DataFrame()
@@ -131,6 +133,7 @@ windowed_tmp = (
 tmp = windowed_tmp
 #putting everything on our master data.frame (all params)
 #tmp["L"] = L
+tmp['rescf'] = str(rescale_factor)
 tmp['padding'] = (tmp.L-win_size)/2
 # dealing with first windows in chrs, L is not win_size + 2*pad, but + 1*pad
 tmp.loc[tmp.start-tmp.padding<0,"L"] = tmp.loc[tmp.start-tmp.padding<0].L - tmp.loc[tmp.start-tmp.padding<0].padding
@@ -149,7 +152,7 @@ tmp.reset_index(drop=True, inplace=True)
 
 #finally assembling our parameter string which will be passed to the slim recipe
 # cols with params names
-pars = ["recfile","exonfile","siminterval", "L", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens"]
+pars = ["recfile","exonfile","siminterval", "L", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens", "rescf"]
 tmp["par_string"]=tmp[pars].apply(get_par_string, axis=1)
 
 
@@ -231,12 +234,12 @@ rule overlay:
 
 rule root:
     input: "../../meta/maps/{rand_id}_exons.tsv", "../../meta/maps/{rand_id}_recrate.tsv", "../../meta/maps/{rand_id}_recrate.hapmap"
-    params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item(), rescale=rescale_factor
+    params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item()
     output: "../../output/great-apes_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/great-apes_{rand_id}_rep{rep}.slim.benchmark.txt"
     resources: mem_mb=56000, runtime=10*24*60
     threads: 2
-    shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' -d rescf='{params.rescale}' {params.recipe}"
+    shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
 
 rule log_root:
     input: "../../output/great-apes_{rand_id}_rep0.trees"
@@ -246,13 +249,13 @@ rule log_root:
 
 rule branch:
     input: lambda wildcards: "../../output/"+edges_info[edges_info.edge==wildcards.edge].parent.item()+"_"+wildcards.rand_id+"_rep"+wildcards.rep+".trees"
-    params: recipe=recipe_path,s=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.  rand_id==wildcards.rand_id)].par_string.item(), rescale=rescale_factor
+    params: recipe=recipe_path,s=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.  rand_id==wildcards.rand_id)].par_string.item()
     wildcard_constraints: edge="(?!great-apes).*", rep="[0-9]+"
     output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
     resources: mem_mb=64000, runtime=10*24*60
     threads: 2
-    shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' -d rescf='{params.rescale}' {params.recipe}"
+    shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
 
 rule log_branch:
     input: "../../output/{edge}_{rand_id}_rep0.trees"
