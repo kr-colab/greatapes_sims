@@ -25,10 +25,6 @@ initialize() {
         coord = asInteger(strsplit(line[0], "\t")[1:2]);
         // just in case my file goes for longer than the stretch I want to simulate
         if (coord[0] > asInteger(L)-1) {
-            // hacky way of making the last base always be a genomic element - downstream this matters for recapitation/overlay w/ mutation
-            if (last < asInteger(L)-1 & i != 0) {
-                initializeGenomicElement(g1,asInteger(L)-2, asInteger(L)-1);
-            }
                 break;
         }
         if(coord[1] > asInteger(L)-1) {
@@ -41,6 +37,10 @@ initialize() {
     }
     if(i==0) {
         initializeGenomicElement(g1, 0, asInteger(L)-1);
+    }
+    // hacky way of making the last base always be a genomic element - downstream this matters for recapitation/overlay w/ mutation
+    if (last < asInteger(L)-1 & i != 0) {
+        initializeGenomicElement(g1,asInteger(L)-2, asInteger(L)-1);
     }
     //reading rec map
     if(exists("rescf")) {
