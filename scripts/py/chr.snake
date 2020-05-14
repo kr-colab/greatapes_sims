@@ -114,7 +114,7 @@ tmp = chroms_tmp
 #tmp["L"] = L
 tmp['rescf'] = str(rescale_factor)
 tmp["mu"] = (tmp.posprop+tmp.delprop)*total_mu
-tmp["siminterval"] = np.where(tmp.N>500000,"500","")
+tmp["siminterval"] = np.where(tmp.N>40000,"500","")
 tmp["numid"] = tmp.groupby(["chr","start","end","L","delprop","delcoef","posprop","poscoef"]).grouper.label_info
 rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
 tmp["rand_id"] = rands[tmp["numid"].tolist()]
@@ -170,7 +170,7 @@ multi = [out_path+s+"_"+rid+"_rep"+str(rep).zfill(pad)+"_multistats.tsv" for s i
 ruleorder: win_intersect > root > branch > overlay > single_pop_stats > multi_pop_stats
 
 rule all:
-    input: overl+single+multi+list(tmp.log.unique())
+    input: overl+single+list(tmp.log.unique())#+multi
 
 rule win_intersect:
     params: ex=ex_file, rec=rec_file, bed_str=win_bed_str
@@ -213,7 +213,7 @@ rule root:
     params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item()
     output: "../../output/great-apes_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/great-apes_{rand_id}_rep{rep}.slim.benchmark.txt"
-    resources: mem_mb=56000, runtime=10*24*60*2
+    resources: mem_mb=128000, runtime=10*24*60*2
     threads: 2
     shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
 
@@ -229,7 +229,7 @@ rule branch:
     wildcard_constraints: edge="(?!great-apes).*", rep="[0-9]+"
     output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
-    resources: mem_mb=64000, runtime=10*24*60*2
+    resources: mem_mb=156000, runtime=10*24*60*2
     threads: 2
     shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
 
