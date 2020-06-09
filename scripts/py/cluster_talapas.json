@@ -1,0 +1,15 @@
+{
+    "__default__" :
+    {
+        "time" : "48:00:00",
+        "n" : 1,
+        "account" : "kernlab",
+        "partition" : "kern",
+        "mem" : "48G",
+        "cores" : "1",
+        "name" : "{rule}",
+        "output" : "{rule}.out",
+        "error" : "{rule}.err",
+    },
+}
+
