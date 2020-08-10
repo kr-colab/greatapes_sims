@@ -47,20 +47,27 @@ recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_gr
 nreps=1
 rescale_factor = 1
 burn_gen = 2 # burn_gen N gens of burnin
+
+#getting chromosome sizes
+#chr_sizes = pd.read_csv(chr_file,sep="\t", header=None)
+rec_rates = pd.read_csv(rec_file, sep="\t")
+chr_sizes = rec_rates.groupby(["#chrom"]).agg({'chromEnd': 'max'}).reset_index()
+chr_sizes.columns=["chr","length"]
+chr_sizes = chr_sizes[chr_sizes['chr']!="chrX"]
 n_sampled_wins = 5
 
 #setting some parameters
 chrom=["chr12"]
-padding=np.array([0,100000,500000,1000000])
+padding=np.array([0, 100000, 500000])
 sample_size=10
 win_size=1000000
 L=list(win_size+2*padding)
 total_mu = 1.66e-8
 # proportions should be fractions
-delprops = [0,0.5]
-posprops = [0,0.01]
-delcoefs = [0,-0.03]
-poscoefs = [0,0.01]
+delprops = [0,0.5, 0.25]
+posprops = [0,0.01, 0.001]
+delcoefs = [0,-0.03, -0.003]
+poscoefs = [0,0.01, 0.001]
 sel_params = {"L":L,"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "poscoef":poscoefs}
 
 # suck up params and hash them
@@ -72,13 +79,6 @@ edges_info = edges_meta[["edge","parent","N","gens"]].copy()
 
 # adjusting the burning time (for greatapes branch)
 edges_info.iloc[0,3] = edges_info.iloc[0,2]*burn_gen
-
-#getting chromosome sizes
-#chr_sizes = pd.read_csv(chr_file,sep="\t", header=None)
-rec_rates = pd.read_csv(rec_file, sep="\t")
-chr_sizes = rec_rates.groupby(["#chrom"]).agg({'chromEnd': 'max'}).reset_index()
-chr_sizes.columns=["chr","length"]
-chr_sizes = chr_sizes[chr_sizes['chr']!="chrX"]
 
 #making a data frame that is going to hold all combinations of parameters
 tmp=pd.DataFrame()
@@ -138,7 +138,7 @@ tmp['padding'] = (tmp.L-win_size)/2
 # dealing with first windows in chrs, L is not win_size + 2*pad, but + 1*pad
 tmp.loc[tmp.start-tmp.padding<0,"L"] = tmp.loc[tmp.start-tmp.padding<0].L - tmp.loc[tmp.start-tmp.padding<0].padding
 tmp["mu"] = (tmp.posprop+tmp.delprop)*total_mu
-tmp["siminterval"] = np.where(tmp.N>500000,"500","")
+tmp["siminterval"] = np.where(tmp.N>40000,"500","")
 tmp["numid"] = tmp.groupby(["chr","start","end","L","delprop","delcoef","posprop","poscoef"]).grouper.label_info
 rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
 tmp["rand_id"] = rands[tmp["numid"].tolist()]
@@ -237,7 +237,7 @@ rule root:
     params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item()
     output: "../../output/great-apes_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/great-apes_{rand_id}_rep{rep}.slim.benchmark.txt"
-    resources: mem_mb=56000, runtime=10*24*60
+    resources: mem_mb=8000, runtime=10*24*60
     threads: 2
     shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
 
@@ -253,7 +253,7 @@ rule branch:
     wildcard_constraints: edge="(?!great-apes).*", rep="[0-9]+"
     output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
-    resources: mem_mb=64000, runtime=10*24*60
+    resources: mem_mb=12000, runtime=10*24*60
     threads: 2
     shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
 
