@@ -5,6 +5,7 @@ import string
 import random
 import datetime as dt
 import math
+import os
 
 def win_bed_str(wildcards):
     """Creates a bed string from the tmp data.frame, getting chrom, start, end and padding"""
@@ -136,6 +137,12 @@ tmp["par_string"]=tmp[pars].apply(get_par_string, axis=1)
 today = dt.datetime.today().strftime('%H%M_%d%m%Y') 
 tmp["date"] = today
 tmp["log"] = "../../output/tmp/"+tmp.edge+"_"+tmp.rand_id+".log"
+par_df = tmp[["chr","start","end","L", "mu","delprop","delcoef","posprop","poscoef", "rescf","rand_id"]].copy()
+if os.path.exists("../../output/rand_id_params.tsv"):
+    ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", sep="\t")
+    par_df = pd.concat([par_df, ex_par_df])    
+par_df.drop_duplicates(inplace=True)
+par_df.to_csv("../../output/rand_id_params.tsv", sep="\t", header=True, index=False, mode="w")
 #tmp.to_csv("../../output/sims_info_win.tsv", sep="\t", header=False, index=False, mode="a")
 
 # I'm getting the terminals bc not all trees are supposed to be overlayed with mutations and recapped
@@ -213,7 +220,7 @@ rule root:
     params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge=="great-apes") & (tmp.rand_id==wildcards.rand_id)].par_string.item()
     output: "../../output/great-apes_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/great-apes_{rand_id}_rep{rep}.slim.benchmark.txt"
-    resources: mem_mb=128000, runtime=10*24*60*5*2
+    resources: mem_mb=128000, runtime=10*24*60
     threads: 2
     shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
 
@@ -229,7 +236,7 @@ rule branch:
     wildcard_constraints: edge="(?!great-apes).*", rep="[0-9]+"
     output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
-    resources: mem_mb=156000, runtime=10*24*60*5*2
+    resources: mem_mb=156000, runtime=10*24*60
     threads: 2
     shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
 
