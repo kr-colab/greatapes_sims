@@ -124,10 +124,12 @@ initialize() {
     if (length(remember_times) > 0)
         sim.rescheduleScriptBlock(s1, generations=remember_times);
     // scheduling saving output + progress messages
-    saving_times = branch_start_gen+seq(5000, n_gens, 5000);
-    saving_times = saving_times[saving_times > sim_start_gen];
-    if (length(saving_times) > 0)
-        sim.rescheduleScriptBlock(s2, generations=saving_times);
+    if (n_gens > 5000) {
+        saving_times = branch_start_gen+seq(5000, n_gens, 5000);
+        saving_times = saving_times[saving_times > sim_start_gen];
+        if (length(saving_times) > 0)
+            sim.rescheduleScriptBlock(s2, generations=saving_times);
+    }
 }
 
 // final event: save tree seq
