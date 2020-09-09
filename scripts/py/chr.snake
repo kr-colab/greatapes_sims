@@ -143,6 +143,7 @@ if os.path.exists("../../output/rand_id_params.tsv"):
     par_df = pd.concat([par_df, ex_par_df])    
 par_df.drop_duplicates(inplace=True)
 par_df.to_csv("../../output/rand_id_params.tsv", sep="\t", header=True, index=False, mode="w")
+tmp.iloc[0:0].to_csv("../../output/header_sims_info.tsv", sep="\t", header=True, index=False, mode="w")
 #tmp.to_csv("../../output/sims_info_win.tsv", sep="\t", header=False, index=False, mode="a")
 
 # I'm getting the terminals bc not all trees are supposed to be overlayed with mutations and recapped
