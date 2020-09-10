@@ -141,7 +141,10 @@ par_df = tmp[["chr","start","end","L", "mu","delprop","delcoef","posprop","posco
 if os.path.exists("../../output/rand_id_params.tsv"):
     ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", sep="\t")
     par_df = pd.concat([par_df, ex_par_df])    
-par_df.drop_duplicates(inplace=True)
+
+par_df["rescf"] = par_df["rescf"].astype(str)
+par_df = par_df.round(15)
+par_df.drop_duplicates(subset=None, keep="first", inplace=True)
 par_df.to_csv("../../output/rand_id_params.tsv", sep="\t", header=True, index=False, mode="w")
 tmp.iloc[0:0].to_csv("../../output/header_sims_info.tsv", sep="\t", header=True, index=False, mode="w")
 #tmp.to_csv("../../output/sims_info_win.tsv", sep="\t", header=False, index=False, mode="a")
