@@ -1,0 +1,6 @@
+edge	parent	N	gens
+A		10	100
+B	A	7	50
+C	A	12	100
+D	C	9	50
+E	C	13	20
