@@ -183,7 +183,7 @@ ruleorder: win_intersect > root > branch > overlay > single_pop_stats > multi_po
 
 print(all_replicates)
 rule all:
-    input: list(tmp.log.unique())+all_replicates#+overl+single+multi
+    input: list(tmp.log.unique())+all_replicates+["../../output/tmp/dedup_log.txt"]#+overl+single+multi
 
 rule win_intersect:
     params: ex=ex_file, rec=rec_file, bed_str=win_bed_str
@@ -253,3 +253,11 @@ rule log_branch:
     run:
         tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==wildcards.edge)].to_csv("../../output/sims_info.tsv", sep="\t", header=False, index=False, mode="a")
 
+rule dedup_logs:
+    input: all_replicates
+    output: touch("../../output/tmp/dedup_log.txt")
+    run:
+        if os.path.exists("../../output/rand_id_params.tsv"):
+            sims_full = pd.read_csv("../../output/rand_id_params.tsv", sep="\t")
+            sims_full.drop_duplicates(subset=None, keep="first", inplace=True)
+            sims_full.to_csv("../../output/sims_info.tsv", sep="\t", header=False, index=False, mode="w")
