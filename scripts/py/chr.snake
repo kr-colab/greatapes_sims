@@ -156,6 +156,7 @@ terminals=list(set(edges_meta.edge.tolist()) - set(edges_meta.parent.tolist()))
 terminals.sort()
 #terminals=["eastern-chimp"]
 terminal_prefixes = np.array(tmp[tmp.edge.isin(terminals)].outfile_pre)
+nodes_prefixes = np.unique(tmp.outfile_pre)
 
 #dealing with replicates
 replicated = np.repeat(terminal_prefixes, nreps)
@@ -164,6 +165,7 @@ uniqs=np.unique(replicated, return_counts=True)[1]
 assert len(set(uniqs)) == 1, "Not all sims are being replicated equally."
 rep_suf = np.tile(["rep"+str(i).zfill(pad) for i in range(uniqs[0])], len(uniqs))
 all_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(replicated,rep_suf)]
+nodes_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(nodes_prefixes,rep_suf)]
 
 # overlay filenames
 overl = [f"{x1}_{x2}_overl.trees" for x1,x2 in zip(replicated,rep_suf)]
@@ -184,7 +186,7 @@ ruleorder: win_intersect > root > branch > overlay > single_pop_stats > multi_po
 
 print(all_replicates)
 rule all:
-    input: list(tmp.log.unique())+all_replicates+["../../output/tmp/dedup_log.txt"]#+overl+single+multi
+    input: list(tmp.log.unique())+nodes_replicates+["../../output/tmp/dedup_log.txt"]#+overl+single+multi
 
 rule win_intersect:
     params: ex=ex_file, rec=rec_file, bed_str=win_bed_str
@@ -258,7 +260,8 @@ rule dedup_logs:
     input: all_replicates
     output: touch("../../output/tmp/dedup_log.txt")
     run:
-        if os.path.exists("../../output/rand_id_params.tsv"):
-            sims_full = pd.read_csv("../../output/rand_id_params.tsv", sep="\t")
+        full_path = "../../output/sims_info.tsv"
+        if os.path.exists(full_path):
+            sims_full = pd.read_csv(full_path, sep="\t")
             sims_full.drop_duplicates(subset=None, keep="first", inplace=True)
-            sims_full.to_csv("../../output/sims_info.tsv", sep="\t", header=False, index=False, mode="w")
+            sims_full.to_csv(full_path, sep="\t", header=False, index=False, mode="w")
