@@ -147,7 +147,7 @@ if os.path.exists("../../output/rand_id_params.tsv"):
 par_df["rescf"] = par_df["rescf"].astype(str)
 par_df = par_df.round(15)
 par_df.drop_duplicates(subset=None, keep="first", inplace=True)
-par_df.to_csv("../../output/rand_id_params.tsv", sep="\t", header=True, index=False, mode="w")
+par_df.to_csv("../../output/rand_id_params.tsv", sep="\t", index=False, mode="w")
 tmp.iloc[0:0].to_csv("../../output/header_sims_info.tsv", sep="\t", header=True, index=False, mode="w")
 #tmp.to_csv("../../output/sims_info_win.tsv", sep="\t", header=False, index=False, mode="a")
 
@@ -262,6 +262,8 @@ rule dedup_logs:
     run:
         full_path = "../../output/sims_info.tsv"
         if os.path.exists(full_path):
-            sims_full = pd.read_csv(full_path, sep="\t")
-            sims_full.drop_duplicates(subset=None, keep="first", inplace=True)
+            sims_full = pd.read_csv(full_path, header=None, sep="\t")
+            cols = sims_full.columns.to_list()
+            cols.remove(23)
+            sims_full.drop_duplicates(subset=cols, keep="first", inplace=True)
             sims_full.to_csv(full_path, sep="\t", header=False, index=False, mode="w")
