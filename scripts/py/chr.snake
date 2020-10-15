@@ -1,3 +1,4 @@
+from collections import defaultdict
 import itertools
 import pandas as pd
 import numpy as np
@@ -51,7 +52,7 @@ burn_gen = 2 # burn_gen N gens of burnin
 
 #getting chromosome sizes
 #chr_sizes = pd.read_csv(chr_file,sep="\t", header=None)
-rec_rates = pd.read_csv(rec_file, sep="\t")
+rec_rates = pd.read_csv(rec_file, sep="\t", converters=defaultdict(lambda i: str))
 chr_sizes = rec_rates.groupby(["#chrom"]).agg({'chromEnd': 'max'}).reset_index()
 chr_sizes.columns=["chr","length"]
 chr_sizes = chr_sizes[chr_sizes['chr']!="chrX"]
@@ -69,7 +70,7 @@ poscoefs = [0]#[0,0.01, 0.001]
 sel_params = {"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "poscoef":poscoefs}
 
 # suck up params and hash them
-edges_meta = pd.read_csv(edges_path,sep="\t")
+edges_meta = pd.read_csv(edges_path,sep="\t", converters=defaultdict(lambda i: str))
 edges_meta["edge"] = edges_meta["edge"].str.replace('_','-')
 edges_meta["parent"] = edges_meta["parent"].str.replace('_','-')
 # root
@@ -103,7 +104,7 @@ chroms = chr_sizes.iloc[which_chroms]
 chroms.columns = ["chr", "L"]
 chroms.L = 50000
 chroms['start'] = 0
-chroms['end'] = chroms['L']
+chroms['end'] = chroms['start'] + chroms['L']
 chroms['padding'] = 0
 chroms = chroms[["chr", "start", "end", "L", "padding"]]
 
@@ -141,7 +142,7 @@ tmp["date"] = today
 tmp["log"] = "../../output/tmp/"+tmp.edge+"_"+tmp.rand_id+".log"
 par_df = tmp[["chr","start","end","L", "mu","delprop","delcoef","posprop","poscoef", "rescf","rand_id"]].copy()
 if os.path.exists("../../output/rand_id_params.tsv"):
-    ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", sep="\t")
+    ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", sep="\t", converters=defaultdict(lambda i: str))
     par_df = pd.concat([par_df, ex_par_df])    
 
 par_df["rescf"] = par_df["rescf"].astype(str)
@@ -193,9 +194,10 @@ rule win_intersect:
     output: ex_f="../../meta/maps/{rand_id}_exons.tsv", rec_f="../../meta/maps/{rand_id}_recrate.tsv", rec_f_hap="../../meta/maps/{rand_id}_recrate.hapmap"
     shell:
         """
-        bedtools intersect -a {params.rec} -b <(printf '{params.bed_str}') | cut -f 1-3,5 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a,$4}}' > {output.rec_f}
+        printf '{params.bed_str}' > ../../meta/maps/'{wildcards.rand_id}'.bed
+        bedtools intersect -a {params.rec} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3,5 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a,$4}}' > {output.rec_f}
         cat <(printf 'Chromosome\\tPosition(bp)\\tRate\\n') <(cut -f1,2,4 {output.rec_f}) <(awk -v OFS='\t' 'END {{print $1,$3,0}}' {output.rec_f}) > {output.rec_f_hap}
-        bedtools intersect -a {params.ex} -b <(printf '{params.bed_str}') | cut -f 1-3 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a}}' > {output.ex_f}
+        bedtools intersect -a {params.ex} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a}}' > {output.ex_f}
         """
 
 rule multi_pop_stats:
@@ -262,8 +264,9 @@ rule dedup_logs:
     run:
         full_path = "../../output/sims_info.tsv"
         if os.path.exists(full_path):
-            sims_full = pd.read_csv(full_path, header=None, sep="\t")
+            sims_full = pd.read_csv(full_path, header=None, sep="\t", converters=defaultdict(lambda i: str))
             cols = sims_full.columns.to_list()
             cols.remove(23)
-            sims_full.drop_duplicates(subset=cols, keep="first", inplace=True)
+            cols.remove(15)
+            sims_full.drop_duplicates(subset=cols, keep="last", inplace=True)
             sims_full.to_csv(full_path, sep="\t", header=False, index=False, mode="w")
