@@ -1,0 +1,283 @@
+from collections import defaultdict
+import itertools
+import pandas as pd
+import numpy as np
+import string
+import random
+import datetime as dt
+import math
+import os
+
+### Helper functions
+def win_bed_str(wildcards):
+    """Creates a bed string from the tmp data.frame, getting chrom, start, end and padding"""
+    chrom, start, end = tmp.loc[tmp.rand_id==wildcards.rand_id,["chr","padded_start","padded_end"]].iloc[0].to_list()
+    assert start.is_integer() and end.is_integer(), f"Start: {start}, stop: {stop} are not integers."
+    start = int(start)
+    end = int(end)
+    return(f"{chrom}\\t{start}\\t{end}\\n")
+
+def expand_grid(data_dict):
+    """Create a dataframe from every combination of given values."""
+    rows = itertools.product(*data_dict.values())
+    return pd.DataFrame.from_records(rows, columns=data_dict.keys())
+
+def id_generator(size=15, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
+
+def get_par_string(row, col_names=["recfile","exonfile","siminterval", "L", "mu","delprop", "delcoef","posprop", "poscoef", "N", "gens", "rescf"]):
+    row_values = row.values.astype('str').tolist()
+    return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in range(len(col_names))]))
+
+### Setting variables/parameters
+seed=114174
+random.seed(seed)
+np.random.seed(seed)
+#these are the paths to all files/dir we will need
+#this table contains info for all edges we will simulate
+edges_path ="/home/murillor/projects/greatapes_sims/meta/edges_meta.tsv"
+meta_path = "/home/murillor/projects/greatapes_sims/meta/sims/"
+out_path = "../../output/"
+#path to tsv file with recombination rates
+rec_file = "/home/murillor/projects/greatapes_sims/meta/rec_rate_hg18.txt"
+#path to tsv with exon annotations
+ex_file = "/home/murillor/projects/greatapes_sims/meta/merged_exons_hg18.bed"
+#chr_file = "/home/murillor/projects/greatapes_sims/meta/hg18.chrom.sizes"
+overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
+#path to slim recipe
+recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
+
+## Simulation parameters 
+# dict with chr id as key and item can be: -1 for full chromosome or an integer with
+# the window size to simulate windows
+chrom = {"chr12": -1}
+padding = [0] # padding surrounding windows, only supported if items in above dict are not "full"
+nreps = 1
+rescale_factor = 100
+burn_gen = 2 # burn_gen N gens of burnin
+total_mu = 1.66e-8 # mutation rate
+# Proportions should be fractions
+delprop = [0]#[0,0.5, 0.25]
+posprop = [0]#[0,0.01, 0.001]
+delcoef = [0]#[0,-0.03, -0.003]
+poscoef = [0]#[0,0.01, 0.001]
+sample_size=10 # for stats
+win_size=1000000 # for stats
+
+
+# Getting chromosome sizes from the recombination map
+rec_rates = pd.read_csv(rec_file, sep="\t")
+chr_sizes = rec_rates.groupby(["#chrom"]).agg({'chromEnd': 'max'}).reset_index()
+chr_sizes.columns=["chr","length"]
+chr_sizes = chr_sizes[chr_sizes['chr']!="chrX"]
+
+# suck up params and hash them
+edges_meta = pd.read_csv(edges_path,sep="\t")
+edges_meta["edge"] = edges_meta["edge"].str.replace('_','-')
+edges_meta["parent"] = edges_meta["parent"].str.replace('_','-')
+# root
+root_edge = edges_meta[edges_meta.parent.isna()].edge[0]
+edges_meta.loc[edges_meta.edge==root_edge, "gens"] = burn_gen*edges_meta.loc[edges_meta.edge==root_edge, "N"]
+
+edges_info = edges_meta[["edge","parent","N","gens"]].copy()
+
+
+#making a data frame that is going to hold all combinations of parameters
+params_dict = {"padding":padding, "delprop":delprop, "delcoef":delcoef, "posprop":posprop, "poscoef":poscoef}
+tmp=pd.DataFrame()
+for i, row in edges_info.iterrows():
+    row=row.to_dict()
+    for key in row:
+        row[key] = [row[key]]
+    row.update(params_dict)
+    tmp = pd.concat([tmp,expand_grid(row)])
+
+#these boolean masks are here bc some parameter combs are nonsensical (e.g., no sim should have 0 proportion of positive mutations and pos coeff non-zero)
+both_p = np.logical_and(tmp.posprop>0,tmp.poscoef > 0)
+both_p_zero = np.logical_and(tmp.posprop==0,tmp.poscoef == 0)
+both_d = np.logical_and(tmp.delprop>0,tmp.delcoef < 0)
+both_d_zero = np.logical_and(tmp.delprop==0,tmp.delcoef == 0)
+use_param_comb = np.logical_and(np.logical_or(both_p,both_p_zero),np.logical_or(both_d, both_d_zero))
+tmp = tmp[use_param_comb]
+## Creating chromosome windows to be simulated
+windowed = pd.DataFrame(columns = ["chr", "start", "end", "clen"])
+for chr, win_len in chroms.items():
+    clen = chr_sizes[chr_sizes.chr == chr].length.item()
+    if win_len < 0:
+        windowed.append({"chr": chr, "start": 0, "stop": clen, "clen": clen})
+        continue
+    if clen < win_len:
+        windowed.append({"chr": chr, "start": 0, "stop": win_len, "clen": clen})
+        continue
+    for w_start in range(0, clen, win_len):
+        w_stop = w_start + win_len
+        if w_stop >= clen:
+            w_stop = clen
+        windowed.append({"chr": chr, "start": w_start, "stop": w_stop, "clen": clen})
+# Expanding tmp and windows
+windowed_tmp = (
+      tmp.assign(key=1)
+      .merge(windowed.assign(key=1), on="key")
+      .drop("key", axis=1)
+)
+tmp = windowed_tmp
+
+## Adding padding
+tmp['padded_start'] = np.fmin(tmp['start']-tmp['padding'], np.zeros(tmp.shape[0])) 
+tmp['padded_end'] = np.fmin(tmp['end']+tmp['padding'], tmp['clen'])
+tmp['L'] = tmp['padded_start'] - tmp['padded_end']
+## Filling out the rest of the DataFrame
+tmp['rescf'] = str(rescale_factor)
+tmp["mu"] = (tmp.posprop+tmp.delprop)*total_mu
+tmp["siminterval"] = np.where(tmp.N>40000,"500","")
+tmp["numid"] = tmp.groupby(["chr","start","end","clen","padding","delprop","delcoef","posprop","poscoef"]).grouper.label_info
+rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
+tmp["rand_id"] = rands[tmp["numid"].tolist()]
+tmp["outfile_pre"] = tmp.edge+"_"+tmp.rand_id
+assert not tmp.outfile_pre.duplicated().any(), "one of the outfile names is duplicated"
+tmp.outfile_pre=out_path+tmp.outfile_pre
+tmp["exonfile"] = "../../meta/maps/"+tmp.rand_id+"_exons.tsv"
+tmp["recfile"] = "../../meta/maps/"+tmp.rand_id+"_recrate.tsv"
+tmp["recfilehap"] ="../../meta/maps/"+tmp.rand_id+"_recrate.hapmap"
+tmp.reset_index(drop=True, inplace=True)
+
+#finally assembling our parameter string which will be passed to the slim recipe
+# cols with params names
+pars = ["recfile","exonfile","siminterval", "L", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens", "rescf"]
+tmp["par_string"]=tmp[pars].apply(get_par_string, axis=1)
+
+
+# writing tmp to file
+today = dt.datetime.today().strftime('%H%M_%d%m%Y') 
+tmp["date"] = today
+tmp["log"] = "../../output/tmp/"+tmp.edge+"_"+tmp.rand_id+".log"
+par_df = tmp[["chr","start","end","L", "mu","delprop","delcoef","posprop","poscoef", "rescf","rand_id"]].copy()
+if os.path.exists("../../output/rand_id_params.tsv"):
+    ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", sep="\t", converters=defaultdict(lambda i: str))
+    par_df = pd.concat([par_df, ex_par_df])    
+
+par_df["rescf"] = par_df["rescf"].astype(str)
+par_df = par_df.round(15)
+par_df.drop_duplicates(subset=None, keep="first", inplace=True)
+par_df.to_csv("../../output/rand_id_params.tsv", sep="\t", index=False, mode="w")
+tmp.iloc[0:0].to_csv("../../output/header_sims_info.tsv", sep="\t", header=True, index=False, mode="w")
+#tmp.to_csv("../../output/sims_info_win.tsv", sep="\t", header=False, index=False, mode="a")
+
+# I'm getting the terminals bc not all trees are supposed to be overlayed with mutations and recapped
+terminals=list(set(edges_meta.edge.tolist()) - set(edges_meta.parent.tolist()))
+terminals.sort()
+#terminals=["eastern-chimp"]
+terminal_prefixes = np.array(tmp[tmp.edge.isin(terminals)].outfile_pre)
+nodes_prefixes = np.unique(tmp.outfile_pre)
+
+#dealing with replicates
+replicated = np.repeat(terminal_prefixes, nreps)
+pad=len(str(nreps))
+uniqs=np.unique(replicated, return_counts=True)[1]
+assert len(set(uniqs)) == 1, "Not all sims are being replicated equally."
+rep_suf = np.tile(["rep"+str(i).zfill(pad) for i in range(uniqs[0])], len(uniqs))
+all_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(replicated,rep_suf)]
+nodes_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(nodes_prefixes,rep_suf)]
+
+# overlay filenames
+overl = [f"{x1}_{x2}_overl.trees" for x1,x2 in zip(replicated,rep_suf)]
+
+# single stats filenames
+single = [f"{x1}_{x2}_singlestats.tsv" for x1,x2 in zip(replicated, rep_suf)]
+
+# multi pop stats filenames
+#print(terminals)
+pairs = list(itertools.combinations(terminals,2))
+pair_strings = ["sp1_"+spp[0]+"_sp2_"+spp[1] for spp in pairs]
+#print(pairs)
+#wins = (windowed.chr+"_"+windowed.start.astype("str")+"_"+windowed.end.astype("str")).to_list()
+multi = [out_path+s+"_"+rid+"_rep"+str(rep).zfill(pad)+"_multistats.tsv" for s in pair_strings for rid in rands for rep in range(nreps)]
+
+# this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
+ruleorder: win_intersect > root > branch > overlay > single_pop_stats > multi_pop_stats
+
+print(all_replicates)
+rule all:
+    input: list(tmp.log.unique())+nodes_replicates+["../../output/tmp/dedup_log.txt"]#+overl+single+multi
+
+rule win_intersect:
+    params: ex=ex_file, rec=rec_file, bed_str=win_bed_str, win=*lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id, ["chr","start","end","padding"]].iloc[0].to_list()
+    output: ex_f="../../meta/maps/{rand_id}_exons.tsv", rec_f="../../meta/maps/{rand_id}_recrate.tsv", rec_f_hap="../../meta/maps/{rand_id}_recrate.hapmap" 
+    shell:
+        """
+        printf '{params.bed_str}' > ../../meta/maps/'{wildcards.rand_id}'.bed
+        bedtools intersect -a {params.rec} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3,5 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a,$4}}' > {output.rec_f}
+        cat <(printf 'Chromosome\\tPosition(bp)\\tRate\\n') <(cut -f1,2,4 {output.rec_f}) <(awk -v OFS='\t' 'END {{print $1,$3,0}}' {output.rec_f}) > {output.rec_f_hap}
+        bedtools intersect -a {params.ex} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a}}' > {output.ex_f}
+        """
+
+rule multi_pop_stats:
+    input: spp1="../../output/{edge1}_{rand_id}_rep{rep}_overl.trees", spp2="../../output/{edge2}_{rand_id}_rep{rep}_overl.trees"
+    output: "../../output/sp1_{edge1}_sp2_{edge2}_{rand_id}_rep{rep}_multistats.tsv"
+    params: win_size=win_size, n=sample_size, L = lambda wildcards: tmp[(tmp.edge==wildcards.edge1) & (tmp.rand_id==wildcards.rand_id)].L.item(), pad = lambda wildcards: tmp[(tmp.edge==wildcards.edge1) & (tmp.rand_id==wildcards.rand_id)].padding.item()
+    resources: mem_mb=32000, runtime=10*24*60
+    threads: 2
+    shell: "python multipop_stats_from_trees.py {input.spp1},{input.spp2} {output} {wildcards.edge1},{wildcards.edge2} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n} {params.pad}"
+
+rule single_pop_stats:
+    input: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees"
+    output: "../../output/{edge}_{rand_id}_rep{rep}_singlestats.tsv"
+    params: win_size=win_size,  n=sample_size, L = lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].L.item(), pad = lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].padding.item()
+    benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.singlestats.benchmark.txt"
+    resources: mem_mb=24000, runtime=10*24*60
+    threads: 2
+    shell: "python stats_from_tree.py {input} {output} {wildcards.edge} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n} {params.pad}"
+
+rule overlay:
+    input: "../../output/{edge}_{rand_id}_rep{rep}.trees"
+    params: mut_rate=total_mu, recapN=edges_meta[edges_meta.edge==root_edge].N.item(),rec_hap_path=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].recfilehap.item(), ex_file_path=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].exonfile.item(), sel_mut_rate=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].mu.item()
+    output: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees"
+    resources: mem_mb=128000, runtime=10*24*60
+    threads: 2
+    benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.overl.benchmark.txt"
+    shell: "python overlay.py {input} {output} {params.mut_rate} {params.recapN} {params.rec_hap_path} {params.ex_file_path} {params.sel_mut_rate}"
+
+rule root:
+    input: "../../meta/maps/{rand_id}_exons.tsv", "../../meta/maps/{rand_id}_recrate.tsv", "../../meta/maps/{rand_id}_recrate.hapmap"
+    params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge==root_edge) & (tmp.rand_id==wildcards.rand_id)].par_string.item()
+    output: f"../../output/{root_edge}_{{rand_id}}_rep{{rep}}.trees"
+    benchmark: f"../../benchmarks/{root_edge}_{{rand_id}}_rep{{rep}}.slim.benchmark.txt"
+    resources: mem_mb=128000, runtime=10*24*60
+    threads: 2
+    shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule log_root:
+    input: f"../../output/{root_edge}_{{rand_id}}_rep0.trees"
+    output: touch(f"../../output/tmp/{root_edge}_{{rand_id}}.log")
+    run:
+        tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==root_edge)].to_csv("../../output/sims_info.tsv", sep="\t", header=False, index=False, mode="a")
+
+rule branch:
+    input: lambda wildcards: "../../output/"+edges_info[edges_info.edge==wildcards.edge].parent.item()+"_"+wildcards.rand_id+"_rep"+wildcards.rep+".trees"
+    params: recipe=recipe_path,s=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.  rand_id==wildcards.rand_id)].par_string.item()
+    wildcard_constraints: edge=f"(?!{root_edge}).*", rep="[0-9]+"
+    output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
+    benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
+    resources: mem_mb=156000, runtime=10*24*60
+    threads: 2
+    shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
+
+rule log_branch:
+    input: "../../output/{edge}_{rand_id}_rep0.trees"
+    output: touch("../../output/tmp/{edge}_{rand_id}.log")
+    wildcard_constraints: edge=f"(?!{root_edge}).*" 
+    run:
+        tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==wildcards.edge)].to_csv("../../output/sims_info.tsv", sep="\t", header=False, index=False, mode="a")
+
+rule dedup_logs:
+    input: all_replicates
+    output: touch("../../output/tmp/dedup_log.txt")
+    run:
+        full_path = "../../output/sims_info.tsv"
+        if os.path.exists(full_path):
+            sims_full = pd.read_csv(full_path, header=None, sep="\t", converters=defaultdict(lambda i: str))
+            cols = sims_full.columns.to_list()
+            cols.remove(23)
+            cols.remove(15)
+            sims_full.drop_duplicates(subset=cols, keep="last", inplace=True)
+            sims_full.to_csv(full_path, sep="\t", header=False, index=False, mode="w")
