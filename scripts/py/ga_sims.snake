@@ -12,7 +12,7 @@ import os
 def win_bed_str(wildcards):
     """Creates a bed string from the tmp data.frame, getting chrom, start, end and padding"""
     chrom, start, end = tmp.loc[tmp.rand_id==wildcards.rand_id,["chr","padded_start","padded_end"]].iloc[0].to_list()
-    assert start.is_integer() and end.is_integer(), f"Start: {start}, stop: {stop} are not integers."
+    print(tmp.loc[tmp.rand_id==wildcards.rand_id,["chr","padded_start","padded_end"]].iloc[0])
     start = int(start)
     end = int(end)
     return(f"{chrom}\\t{start}\\t{end}\\n")
@@ -50,7 +50,8 @@ recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_gr
 ## Simulation parameters 
 # dict with chr id as key and item can be: -1 for full chromosome or an integer with
 # the window size to simulate windows
-chrom = {"chr12": -1}
+n_sampled_windows = 1 # sample some windows if greater than 0
+chroms = {"chr12": 100000}
 padding = [0] # padding surrounding windows, only supported if items in above dict are not "full"
 nreps = 1
 rescale_factor = 100
@@ -65,24 +66,22 @@ sample_size=10 # for stats
 win_size=1000000 # for stats
 
 
-# Getting chromosome sizes from the recombination map
+## Getting chromosome sizes from the recombination map
 rec_rates = pd.read_csv(rec_file, sep="\t")
 chr_sizes = rec_rates.groupby(["#chrom"]).agg({'chromEnd': 'max'}).reset_index()
 chr_sizes.columns=["chr","length"]
 chr_sizes = chr_sizes[chr_sizes['chr']!="chrX"]
 
-# suck up params and hash them
+## Suck up params and hash them
 edges_meta = pd.read_csv(edges_path,sep="\t")
 edges_meta["edge"] = edges_meta["edge"].str.replace('_','-')
 edges_meta["parent"] = edges_meta["parent"].str.replace('_','-')
 # root
 root_edge = edges_meta[edges_meta.parent.isna()].edge[0]
 edges_meta.loc[edges_meta.edge==root_edge, "gens"] = burn_gen*edges_meta.loc[edges_meta.edge==root_edge, "N"]
-
 edges_info = edges_meta[["edge","parent","N","gens"]].copy()
 
-
-#making a data frame that is going to hold all combinations of parameters
+## Making a data frame that is going to hold all combinations of parameters
 params_dict = {"padding":padding, "delprop":delprop, "delcoef":delcoef, "posprop":posprop, "poscoef":poscoef}
 tmp=pd.DataFrame()
 for i, row in edges_info.iterrows():
@@ -91,7 +90,7 @@ for i, row in edges_info.iterrows():
         row[key] = [row[key]]
     row.update(params_dict)
     tmp = pd.concat([tmp,expand_grid(row)])
-
+print(tmp)
 #these boolean masks are here bc some parameter combs are nonsensical (e.g., no sim should have 0 proportion of positive mutations and pos coeff non-zero)
 both_p = np.logical_and(tmp.posprop>0,tmp.poscoef > 0)
 both_p_zero = np.logical_and(tmp.posprop==0,tmp.poscoef == 0)
@@ -104,17 +103,21 @@ windowed = pd.DataFrame(columns = ["chr", "start", "end", "clen"])
 for chr, win_len in chroms.items():
     clen = chr_sizes[chr_sizes.chr == chr].length.item()
     if win_len < 0:
-        windowed.append({"chr": chr, "start": 0, "stop": clen, "clen": clen})
+        windowed = windowed.append({"chr": chr, "start": 0, "end": clen, "clen": clen}, ignore_index=True)
         continue
     if clen < win_len:
-        windowed.append({"chr": chr, "start": 0, "stop": win_len, "clen": clen})
+        windowed = windowed.append({"chr": chr, "start": 0, "end": win_len, "clen": clen}, ignore_index=True)
         continue
     for w_start in range(0, clen, win_len):
-        w_stop = w_start + win_len
-        if w_stop >= clen:
-            w_stop = clen
-        windowed.append({"chr": chr, "start": w_start, "stop": w_stop, "clen": clen})
-# Expanding tmp and windows
+        w_end = w_start + win_len
+        if w_end >= clen:
+            w_end = clen
+        windowed = windowed.append({"chr": chr, "start": w_start, "end": w_end, "clen": clen}, ignore_index=True)
+### Sampling some windows
+if n_sampled_windows > 0:
+    windowed = windowed.sample(n=n_sampled_windows,random_state=0)
+print(windowed) 
+## Expanding tmp and windows
 windowed_tmp = (
       tmp.assign(key=1)
       .merge(windowed.assign(key=1), on="key")
@@ -123,9 +126,10 @@ windowed_tmp = (
 tmp = windowed_tmp
 
 ## Adding padding
-tmp['padded_start'] = np.fmin(tmp['start']-tmp['padding'], np.zeros(tmp.shape[0])) 
+tmp['padded_start'] = np.fmax(tmp['start']-tmp['padding'], np.zeros(tmp.shape[0])) 
 tmp['padded_end'] = np.fmin(tmp['end']+tmp['padding'], tmp['clen'])
-tmp['L'] = tmp['padded_start'] - tmp['padded_end']
+tmp['L'] = tmp['padded_end'] - tmp['padded_start']
+assert (tmp.L > 0 ).all
 ## Filling out the rest of the DataFrame
 tmp['rescf'] = str(rescale_factor)
 tmp["mu"] = (tmp.posprop+tmp.delprop)*total_mu
@@ -161,7 +165,6 @@ par_df = par_df.round(15)
 par_df.drop_duplicates(subset=None, keep="first", inplace=True)
 par_df.to_csv("../../output/rand_id_params.tsv", sep="\t", index=False, mode="w")
 tmp.iloc[0:0].to_csv("../../output/header_sims_info.tsv", sep="\t", header=True, index=False, mode="w")
-#tmp.to_csv("../../output/sims_info_win.tsv", sep="\t", header=False, index=False, mode="a")
 
 # I'm getting the terminals bc not all trees are supposed to be overlayed with mutations and recapped
 terminals=list(set(edges_meta.edge.tolist()) - set(edges_meta.parent.tolist()))
@@ -179,63 +182,24 @@ rep_suf = np.tile(["rep"+str(i).zfill(pad) for i in range(uniqs[0])], len(uniqs)
 all_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(replicated,rep_suf)]
 nodes_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(nodes_prefixes,rep_suf)]
 
-# overlay filenames
-overl = [f"{x1}_{x2}_overl.trees" for x1,x2 in zip(replicated,rep_suf)]
-
-# single stats filenames
-single = [f"{x1}_{x2}_singlestats.tsv" for x1,x2 in zip(replicated, rep_suf)]
-
-# multi pop stats filenames
-#print(terminals)
-pairs = list(itertools.combinations(terminals,2))
-pair_strings = ["sp1_"+spp[0]+"_sp2_"+spp[1] for spp in pairs]
-#print(pairs)
-#wins = (windowed.chr+"_"+windowed.start.astype("str")+"_"+windowed.end.astype("str")).to_list()
-multi = [out_path+s+"_"+rid+"_rep"+str(rep).zfill(pad)+"_multistats.tsv" for s in pair_strings for rid in rands for rep in range(nreps)]
 
 # this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
-ruleorder: win_intersect > root > branch > overlay > single_pop_stats > multi_pop_stats
+ruleorder: win_intersect > root > branch 
 
 print(all_replicates)
 rule all:
-    input: list(tmp.log.unique())+nodes_replicates+["../../output/tmp/dedup_log.txt"]#+overl+single+multi
+    input: list(tmp.log.unique())+nodes_replicates+["../../output/tmp/dedup_log.txt"]
 
 rule win_intersect:
-    params: ex=ex_file, rec=rec_file, bed_str=win_bed_str, win=*lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id, ["chr","start","end","padding"]].iloc[0].to_list()
+    params: ex=ex_file, rec=rec_file, bed_str=win_bed_str, chrom= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"chr"].iloc[0], start= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_start"].iloc[0], end= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_end"].iloc[0]
     output: ex_f="../../meta/maps/{rand_id}_exons.tsv", rec_f="../../meta/maps/{rand_id}_recrate.tsv", rec_f_hap="../../meta/maps/{rand_id}_recrate.hapmap" 
     shell:
         """
         printf '{params.bed_str}' > ../../meta/maps/'{wildcards.rand_id}'.bed
-        bedtools intersect -a {params.rec} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3,5 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a,$4}}' > {output.rec_f}
+        bedtools intersect -a {params.rec} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3,5 | awk -v OFS='\t' -v shift='{params.start}' '{{print $1,$2-shift, $3-shift,$4}}' > {output.rec_f}
         cat <(printf 'Chromosome\\tPosition(bp)\\tRate\\n') <(cut -f1,2,4 {output.rec_f}) <(awk -v OFS='\t' 'END {{print $1,$3,0}}' {output.rec_f}) > {output.rec_f_hap}
-        bedtools intersect -a {params.ex} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a}}' > {output.ex_f}
+        bedtools intersect -a {params.ex} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3 | awk -v OFS='\t' -v shift='{params.start}' '{{print $1,$2-shift, $3-shift,$4}}' > {output.ex_f}
         """
-
-rule multi_pop_stats:
-    input: spp1="../../output/{edge1}_{rand_id}_rep{rep}_overl.trees", spp2="../../output/{edge2}_{rand_id}_rep{rep}_overl.trees"
-    output: "../../output/sp1_{edge1}_sp2_{edge2}_{rand_id}_rep{rep}_multistats.tsv"
-    params: win_size=win_size, n=sample_size, L = lambda wildcards: tmp[(tmp.edge==wildcards.edge1) & (tmp.rand_id==wildcards.rand_id)].L.item(), pad = lambda wildcards: tmp[(tmp.edge==wildcards.edge1) & (tmp.rand_id==wildcards.rand_id)].padding.item()
-    resources: mem_mb=32000, runtime=10*24*60
-    threads: 2
-    shell: "python multipop_stats_from_trees.py {input.spp1},{input.spp2} {output} {wildcards.edge1},{wildcards.edge2} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n} {params.pad}"
-
-rule single_pop_stats:
-    input: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees"
-    output: "../../output/{edge}_{rand_id}_rep{rep}_singlestats.tsv"
-    params: win_size=win_size,  n=sample_size, L = lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].L.item(), pad = lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].padding.item()
-    benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.singlestats.benchmark.txt"
-    resources: mem_mb=24000, runtime=10*24*60
-    threads: 2
-    shell: "python stats_from_tree.py {input} {output} {wildcards.edge} {wildcards.rand_id} {wildcards.rep} {params.win_size} {params.L} {params.n} {params.pad}"
-
-rule overlay:
-    input: "../../output/{edge}_{rand_id}_rep{rep}.trees"
-    params: mut_rate=total_mu, recapN=edges_meta[edges_meta.edge==root_edge].N.item(),rec_hap_path=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].recfilehap.item(), ex_file_path=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].exonfile.item(), sel_mut_rate=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.rand_id==wildcards.rand_id)].mu.item()
-    output: "../../output/{edge}_{rand_id}_rep{rep}_overl.trees"
-    resources: mem_mb=128000, runtime=10*24*60
-    threads: 2
-    benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.overl.benchmark.txt"
-    shell: "python overlay.py {input} {output} {params.mut_rate} {params.recapN} {params.rec_hap_path} {params.ex_file_path} {params.sel_mut_rate}"
 
 rule root:
     input: "../../meta/maps/{rand_id}_exons.tsv", "../../meta/maps/{rand_id}_recrate.tsv", "../../meta/maps/{rand_id}_recrate.hapmap"
