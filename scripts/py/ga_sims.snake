@@ -50,21 +50,20 @@ recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_gr
 ## Simulation parameters 
 # dict with chr id as key and item can be: -1 for full chromosome or an integer with
 # the window size to simulate windows
-n_sampled_windows = 1 # sample some windows if greater than 0
-chroms = {"chr12": 100000}
-padding = [0] # padding surrounding windows, only supported if items in above dict are not "full"
+n_sampled_windows = -1 # sample some windows if greater than 0
+chroms = pd.DataFrame({"chr": ["chr12", "chr12"], "windowing": [20000000, -1]})
+padding = [0, 500000] # padding surrounding windows, only supported if items in above dict are not "full"
 nreps = 1
-rescale_factor = 100
+rescale_factor = 1
 burn_gen = 2 # burn_gen N gens of burnin
-total_mu = 1.66e-8 # mutation rate
+total_mu = 2e-8 # mutation rate
 # Proportions should be fractions
-delprop = [0]#[0,0.5, 0.25]
-posprop = [0]#[0,0.01, 0.001]
-delcoef = [0]#[0,-0.03, -0.003]
-poscoef = [0]#[0,0.01, 0.001]
+delrate = [x*total_mu for x in [0,0.3, 0.1]]
+posrate = [x*total_mu for x in [0,0.005, 0.0005]]
+delcoef = [0,-0.03, -0.015]
+poscoef = [0,0.01]
 sample_size=10 # for stats
 win_size=1000000 # for stats
-
 
 ## Getting chromosome sizes from the recombination map
 rec_rates = pd.read_csv(rec_file, sep="\t")
@@ -82,7 +81,7 @@ edges_meta.loc[edges_meta.edge==root_edge, "gens"] = burn_gen*edges_meta.loc[edg
 edges_info = edges_meta[["edge","parent","N","gens"]].copy()
 
 ## Making a data frame that is going to hold all combinations of parameters
-params_dict = {"padding":padding, "delprop":delprop, "delcoef":delcoef, "posprop":posprop, "poscoef":poscoef}
+params_dict = {"padding":padding, "delrate":delrate, "delcoef":delcoef, "posrate":posrate, "poscoef":poscoef}
 tmp=pd.DataFrame()
 for i, row in edges_info.iterrows():
     row=row.to_dict()
@@ -91,16 +90,16 @@ for i, row in edges_info.iterrows():
     row.update(params_dict)
     tmp = pd.concat([tmp,expand_grid(row)])
 print(tmp)
-#these boolean masks are here bc some parameter combs are nonsensical (e.g., no sim should have 0 proportion of positive mutations and pos coeff non-zero)
-both_p = np.logical_and(tmp.posprop>0,tmp.poscoef > 0)
-both_p_zero = np.logical_and(tmp.posprop==0,tmp.poscoef == 0)
-both_d = np.logical_and(tmp.delprop>0,tmp.delcoef < 0)
-both_d_zero = np.logical_and(tmp.delprop==0,tmp.delcoef == 0)
+#these boolean masks are here bc some parameter combs are nonsensical (e.g., no sim should have 0 rateortion of positive mutations and pos coeff non-zero)
+both_p = np.logical_and(tmp.posrate>0,tmp.poscoef > 0)
+both_p_zero = np.logical_and(tmp.posrate==0,tmp.poscoef == 0)
+both_d = np.logical_and(tmp.delrate>0,tmp.delcoef < 0)
+both_d_zero = np.logical_and(tmp.delrate==0,tmp.delcoef == 0)
 use_param_comb = np.logical_and(np.logical_or(both_p,both_p_zero),np.logical_or(both_d, both_d_zero))
 tmp = tmp[use_param_comb]
 ## Creating chromosome windows to be simulated
 windowed = pd.DataFrame(columns = ["chr", "start", "end", "clen"])
-for chr, win_len in chroms.items():
+for chr, win_len in chroms.itertuples(index=False):
     clen = chr_sizes[chr_sizes.chr == chr].length.item()
     if win_len < 0:
         windowed = windowed.append({"chr": chr, "start": 0, "end": clen, "clen": clen}, ignore_index=True)
@@ -123,7 +122,7 @@ windowed_tmp = (
       .merge(windowed.assign(key=1), on="key")
       .drop("key", axis=1)
 )
-tmp = windowed_tmp
+tmp = windowed_tmp.copy()
 
 ## Adding padding
 tmp['padded_start'] = np.fmax(tmp['start']-tmp['padding'], np.zeros(tmp.shape[0])) 
@@ -132,9 +131,17 @@ tmp['L'] = tmp['padded_end'] - tmp['padded_start']
 assert (tmp.L > 0 ).all
 ## Filling out the rest of the DataFrame
 tmp['rescf'] = str(rescale_factor)
-tmp["mu"] = (tmp.posprop+tmp.delprop)*total_mu
+tmp["mu"] = (tmp.posrate+tmp.delrate)
+tmp['delprop'] = (tmp['delrate']/(tmp['delrate']+tmp['posrate']))*100
+tmp['posprop'] = (tmp['posrate']/(tmp['delrate']+tmp['posrate']))*100
+tmp.delprop = tmp.delprop.fillna(0)
+tmp.posprop = tmp.posprop.fillna(0)
 tmp["siminterval"] = np.where(tmp.N>40000,"500","")
-tmp["numid"] = tmp.groupby(["chr","start","end","clen","padding","delprop","delcoef","posprop","poscoef"]).grouper.label_info
+diff_cols = ["edge","chr","padded_start","padded_end","delrate","delcoef","posrate","poscoef","mu","rescf"]
+tmp.duplicated(subset=diff_cols)
+tmp.drop_duplicates(subset=diff_cols,inplace=True,ignore_index=True)
+tmp.reset_index(drop=True, inplace=True)
+tmp["numid"] = tmp.groupby(diff_cols[1:]).ngroup()
 rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
 tmp["rand_id"] = rands[tmp["numid"].tolist()]
 tmp["outfile_pre"] = tmp.edge+"_"+tmp.rand_id
@@ -147,7 +154,7 @@ tmp.reset_index(drop=True, inplace=True)
 
 #finally assembling our parameter string which will be passed to the slim recipe
 # cols with params names
-pars = ["recfile","exonfile","siminterval", "L", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens", "rescf"]
+pars = ["recfile","exonfile","siminterval", "L", "mu","delrate", "delcoef", "posrate","poscoef", "N", "gens", "rescf"]
 tmp["par_string"]=tmp[pars].apply(get_par_string, axis=1)
 
 
@@ -155,7 +162,7 @@ tmp["par_string"]=tmp[pars].apply(get_par_string, axis=1)
 today = dt.datetime.today().strftime('%H%M_%d%m%Y') 
 tmp["date"] = today
 tmp["log"] = "../../output/tmp/"+tmp.edge+"_"+tmp.rand_id+".log"
-par_df = tmp[["chr","start","end","L", "mu","delprop","delcoef","posprop","poscoef", "rescf","rand_id"]].copy()
+par_df = tmp[diff_cols[1:]].copy()
 if os.path.exists("../../output/rand_id_params.tsv"):
     ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", sep="\t", converters=defaultdict(lambda i: str))
     par_df = pd.concat([par_df, ex_par_df])    
@@ -169,26 +176,22 @@ tmp.iloc[0:0].to_csv("../../output/header_sims_info.tsv", sep="\t", header=True,
 # I'm getting the terminals bc not all trees are supposed to be overlayed with mutations and recapped
 terminals=list(set(edges_meta.edge.tolist()) - set(edges_meta.parent.tolist()))
 terminals.sort()
+print(tmp.edge)
 #terminals=["eastern-chimp"]
 terminal_prefixes = np.array(tmp[tmp.edge.isin(terminals)].outfile_pre)
-nodes_prefixes = np.unique(tmp.outfile_pre)
+nodes_prefixes = tmp.outfile_pre
 
 #dealing with replicates
-replicated = np.repeat(terminal_prefixes, nreps)
 pad=len(str(nreps))
-uniqs=np.unique(replicated, return_counts=True)[1]
-assert len(set(uniqs)) == 1, "Not all sims are being replicated equally."
-rep_suf = np.tile(["rep"+str(i).zfill(pad) for i in range(uniqs[0])], len(uniqs))
-all_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(replicated,rep_suf)]
-nodes_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(nodes_prefixes,rep_suf)]
+terminal_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(nreps) for pre in terminal_prefixes]
+nodes_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(nreps) for pre in nodes_prefixes]
 
 
 # this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
 ruleorder: win_intersect > root > branch 
 
-print(all_replicates)
 rule all:
-    input: list(tmp.log.unique())+nodes_replicates+["../../output/tmp/dedup_log.txt"]
+    input: tmp.log.to_list()+nodes_outfiles+["../../output/tmp/dedup_log.txt"]
 
 rule win_intersect:
     params: ex=ex_file, rec=rec_file, bed_str=win_bed_str, chrom= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"chr"].iloc[0], start= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_start"].iloc[0], end= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_end"].iloc[0]
@@ -234,7 +237,7 @@ rule log_branch:
         tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==wildcards.edge)].to_csv("../../output/sims_info.tsv", sep="\t", header=False, index=False, mode="a")
 
 rule dedup_logs:
-    input: all_replicates
+    input: nodes_outfiles 
     output: touch("../../output/tmp/dedup_log.txt")
     run:
         full_path = "../../output/sims_info.tsv"
