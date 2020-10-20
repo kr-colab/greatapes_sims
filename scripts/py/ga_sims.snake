@@ -51,10 +51,10 @@ recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_gr
 # dict with chr id as key and item can be: -1 for full chromosome or an integer with
 # the window size to simulate windows
 n_sampled_windows = -1 # sample some windows if greater than 0
-chroms = pd.DataFrame({"chr": ["chr12", "chr12"], "windowing": [20000000, -1]})
+chroms = pd.DataFrame({"chr": ["chr12", "chr12"], "windowing": [10000000, -1]})
 padding = [0, 500000] # padding surrounding windows, only supported if items in above dict are not "full"
 nreps = 1
-rescale_factor = 1
+rescale_factor = [1, 10]
 burn_gen = 2 # burn_gen N gens of burnin
 total_mu = 2e-8 # mutation rate
 # Proportions should be fractions
@@ -81,7 +81,7 @@ edges_meta.loc[edges_meta.edge==root_edge, "gens"] = burn_gen*edges_meta.loc[edg
 edges_info = edges_meta[["edge","parent","N","gens"]].copy()
 
 ## Making a data frame that is going to hold all combinations of parameters
-params_dict = {"padding":padding, "delrate":delrate, "delcoef":delcoef, "posrate":posrate, "poscoef":poscoef}
+params_dict = {"rescf": rescale_factor, "padding":padding, "delrate":delrate, "delcoef":delcoef, "posrate":posrate, "poscoef":poscoef}
 tmp=pd.DataFrame()
 for i, row in edges_info.iterrows():
     row=row.to_dict()
@@ -130,7 +130,6 @@ tmp['padded_end'] = np.fmin(tmp['end']+tmp['padding'], tmp['clen'])
 tmp['L'] = tmp['padded_end'] - tmp['padded_start']
 assert (tmp.L > 0 ).all
 ## Filling out the rest of the DataFrame
-tmp['rescf'] = str(rescale_factor)
 tmp["mu"] = (tmp.posrate+tmp.delrate)
 tmp['delprop'] = (tmp['delrate']/(tmp['delrate']+tmp['posrate']))*100
 tmp['posprop'] = (tmp['posrate']/(tmp['delrate']+tmp['posrate']))*100
