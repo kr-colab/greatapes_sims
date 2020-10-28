@@ -25,27 +25,29 @@ initialize() {
     initializeGenomicElementType("g1", c(m1,m2), c(asFloat(delprop),asFloat(posprop)));	
     f = readFile(exonfile);
     i = 0;
-    last = 0;
+    start_coords = c();
+    end_coords = c();
     for (line in f) {
         coord = asInteger(strsplit(line[0], "\t")[1:2]);
         // just in case my file goes for longer than the stretch I want to simulate
         if (coord[0] > asInteger(L)-1) {
-                break;
+            catn("Elements in exonfile span a region larger than the implied by L.");
+            break;
         }
         if(coord[1] > asInteger(L)-1) {
+            catn("Trimming exon element. Elements in exonfile span a region larger than the implied by L.");
             coord[1] = asInteger(L)-1;
         }
+        start_coords = c(start_coords, coord[0]);
         // the -1 in the end coordinate is bc bed are not inclusive, but slim is
-        initializeGenomicElement(g1, coord[0], coord[1]-1);
-        last = coord[1];
+        end_coords = c(end_coords, coord[1]-1);
         i=i+1;
     }
     if(i==0) {
+        catn("No elements in exonfile. Starting a chromosome with one element of length L instead.");
         initializeGenomicElement(g1, 0, asInteger(L)-1);
-    }
-    // hacky way of making the last base always be a genomic element - downstream this matters for recapitation/overlay w/ mutation
-    if (last < asInteger(L)-1 & i != 0) {
-        initializeGenomicElement(g1,asInteger(L)-2, asInteger(L)-1);
+    } else {
+        initializeGenomicElement(g1, start_coords, end_coords);
     }
     //reading rec map
     lines = readFile(recfile);
@@ -58,6 +60,7 @@ initialize() {
     }
     // IMPLEMENT CASE WHERE L IS SMALLER THAN REC MAP
     if (ends[length(ends)-1] > asInteger(L)-1) {
+        catn("Rec map spans a larger region than the length of chromsome L. Trimming the map.");
         // adding a conditional to make sure rec is at least the first rate
         if(ends[0] > asInteger(L)-1) {
             ends[0]=asInteger(L)-1;
@@ -68,6 +71,7 @@ initialize() {
     }
     // CASE WHERE LAST END IS SMALLER THAN REC MAP
     if (ends[length(ends)-1]< asInteger(L)-1) {
+        catn("Rec map spans a smaller region than the length of the chromosome. Adding 0 rec from there on.");
         ends = c(ends,asInteger(L)-1);
         rates=c(rates,0.0);
     }
