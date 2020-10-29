@@ -163,8 +163,8 @@ tmp["date"] = today
 tmp["log"] = "../../output/tmp/"+tmp.edge+"_"+tmp.rand_id+".log"
 par_df = tmp[diff_cols[1:]].copy()
 if os.path.exists("../../output/rand_id_params.tsv"):
-    ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", header=None, sep="\t", converters=defaultdict(lambda i: str))
-    par_df = pd.concat([par_df, ex_par_df])    
+    ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", header=None, names=par_df.columns, sep="\t", converters=defaultdict(lambda i: str))
+    par_df = pd.concat([par_df, ex_par_df], ignore_index=True)
 
 par_df["rescf"] = par_df["rescf"].astype(str)
 par_df = par_df.round(15)
