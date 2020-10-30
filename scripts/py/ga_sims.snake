@@ -161,7 +161,7 @@ tmp["par_string"]=tmp[pars].apply(get_par_string, axis=1)
 today = dt.datetime.today().strftime('%H%M_%d%m%Y') 
 tmp["date"] = today
 tmp["log"] = "../../output/tmp/"+tmp.edge+"_"+tmp.rand_id+".log"
-par_df = tmp[diff_cols[1:]].copy()
+par_df = tmp[diff_cols[1:]+["rand_id"]].copy()
 if os.path.exists("../../output/rand_id_params.tsv"):
     ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", header=None, names=par_df.columns, sep="\t", converters=defaultdict(lambda i: str))
     par_df = pd.concat([par_df, ex_par_df], ignore_index=True)

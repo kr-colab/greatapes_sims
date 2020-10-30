@@ -95,7 +95,7 @@ initialize() {
     // checking if any intermediate file has been saved
     // so that we can restart from there
     if (n_gens > 5000) {
-        outs = system("python find_temp_trees.py "+outfile);
+        outs = system("python /home/murillor/projects/greatapes_sims/scripts/py/find_temp_trees.py "+outfile);
         if (length(outs) == 2)
         {
             infile = outs[0];
