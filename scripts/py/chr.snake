@@ -1,3 +1,4 @@
+from collections import defaultdict
 import itertools
 import pandas as pd
 import numpy as np
@@ -29,7 +30,7 @@ def get_par_string(row, col_names=["recfile","exonfile","siminterval", "L", "mu"
     row_values = row.values.astype('str').tolist()
     return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in range(len(col_names))]))
 
-seed=11439783
+seed=114174
 random.seed(seed)
 np.random.seed(seed)
 #these are the paths to all files/dir we will need
@@ -46,12 +47,12 @@ overl_path = "/home/murillor/projects/greatapes_sims/scripts/py/overlay.py"
 #path to slim recipe
 recipe_path = "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
 nreps=1
-rescale_factor = 1
+rescale_factor = 100
 burn_gen = 2 # burn_gen N gens of burnin
 
 #getting chromosome sizes
 #chr_sizes = pd.read_csv(chr_file,sep="\t", header=None)
-rec_rates = pd.read_csv(rec_file, sep="\t")
+rec_rates = pd.read_csv(rec_file, sep="\t", converters=defaultdict(lambda i: str))
 chr_sizes = rec_rates.groupby(["#chrom"]).agg({'chromEnd': 'max'}).reset_index()
 chr_sizes.columns=["chr","length"]
 chr_sizes = chr_sizes[chr_sizes['chr']!="chrX"]
@@ -62,14 +63,14 @@ sample_size=10
 win_size=1000000
 total_mu = 1.66e-8
 # proportions should be fractions
-delprops = [0,0.5, 0.25]
-posprops = [0,0.01, 0.001]
-delcoefs = [0,-0.03, -0.003]
-poscoefs = [0,0.01, 0.001]
+delprops = [0]#[0,0.5, 0.25]
+posprops = [0]#[0,0.01, 0.001]
+delcoefs = [0]#[0,-0.03, -0.003]
+poscoefs = [0]#[0,0.01, 0.001]
 sel_params = {"delprop":delprops, "delcoef":delcoefs, "posprop":posprops, "poscoef":poscoefs}
 
 # suck up params and hash them
-edges_meta = pd.read_csv(edges_path,sep="\t")
+edges_meta = pd.read_csv(edges_path,sep="\t", converters=defaultdict(lambda i: str))
 edges_meta["edge"] = edges_meta["edge"].str.replace('_','-')
 edges_meta["parent"] = edges_meta["parent"].str.replace('_','-')
 # root
@@ -101,8 +102,9 @@ tmp = tmp[use_param_comb]
 which_chroms = np.array([c in chrom  for c in chr_sizes.chr.tolist()])
 chroms = chr_sizes.iloc[which_chroms]
 chroms.columns = ["chr", "L"]
+chroms.L = 50000
 chroms['start'] = 0
-chroms['end'] = chroms['L']
+chroms['end'] = chroms['start'] + chroms['L']
 chroms['padding'] = 0
 chroms = chroms[["chr", "start", "end", "L", "padding"]]
 
@@ -140,13 +142,13 @@ tmp["date"] = today
 tmp["log"] = "../../output/tmp/"+tmp.edge+"_"+tmp.rand_id+".log"
 par_df = tmp[["chr","start","end","L", "mu","delprop","delcoef","posprop","poscoef", "rescf","rand_id"]].copy()
 if os.path.exists("../../output/rand_id_params.tsv"):
-    ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", sep="\t")
+    ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", sep="\t", converters=defaultdict(lambda i: str))
     par_df = pd.concat([par_df, ex_par_df])    
 
 par_df["rescf"] = par_df["rescf"].astype(str)
 par_df = par_df.round(15)
 par_df.drop_duplicates(subset=None, keep="first", inplace=True)
-par_df.to_csv("../../output/rand_id_params.tsv", sep="\t", header=True, index=False, mode="w")
+par_df.to_csv("../../output/rand_id_params.tsv", sep="\t", index=False, mode="w")
 tmp.iloc[0:0].to_csv("../../output/header_sims_info.tsv", sep="\t", header=True, index=False, mode="w")
 #tmp.to_csv("../../output/sims_info_win.tsv", sep="\t", header=False, index=False, mode="a")
 
@@ -155,6 +157,7 @@ terminals=list(set(edges_meta.edge.tolist()) - set(edges_meta.parent.tolist()))
 terminals.sort()
 #terminals=["eastern-chimp"]
 terminal_prefixes = np.array(tmp[tmp.edge.isin(terminals)].outfile_pre)
+nodes_prefixes = np.unique(tmp.outfile_pre)
 
 #dealing with replicates
 replicated = np.repeat(terminal_prefixes, nreps)
@@ -163,6 +166,7 @@ uniqs=np.unique(replicated, return_counts=True)[1]
 assert len(set(uniqs)) == 1, "Not all sims are being replicated equally."
 rep_suf = np.tile(["rep"+str(i).zfill(pad) for i in range(uniqs[0])], len(uniqs))
 all_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(replicated,rep_suf)]
+nodes_replicates = [f"{x1}_{x2}.trees" for x1,x2 in zip(nodes_prefixes,rep_suf)]
 
 # overlay filenames
 overl = [f"{x1}_{x2}_overl.trees" for x1,x2 in zip(replicated,rep_suf)]
@@ -183,16 +187,17 @@ ruleorder: win_intersect > root > branch > overlay > single_pop_stats > multi_po
 
 print(all_replicates)
 rule all:
-    input: list(tmp.log.unique())+all_replicates#+overl+single+multi
+    input: list(tmp.log.unique())+nodes_replicates+["../../output/tmp/dedup_log.txt"]#+overl+single+multi
 
 rule win_intersect:
     params: ex=ex_file, rec=rec_file, bed_str=win_bed_str
     output: ex_f="../../meta/maps/{rand_id}_exons.tsv", rec_f="../../meta/maps/{rand_id}_recrate.tsv", rec_f_hap="../../meta/maps/{rand_id}_recrate.hapmap"
     shell:
         """
-        bedtools intersect -a {params.rec} -b <(printf '{params.bed_str}') | cut -f 1-3,5 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a,$4}}' > {output.rec_f}
+        printf '{params.bed_str}' > ../../meta/maps/'{wildcards.rand_id}'.bed
+        bedtools intersect -a {params.rec} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3,5 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a,$4}}' > {output.rec_f}
         cat <(printf 'Chromosome\\tPosition(bp)\\tRate\\n') <(cut -f1,2,4 {output.rec_f}) <(awk -v OFS='\t' 'END {{print $1,$3,0}}' {output.rec_f}) > {output.rec_f_hap}
-        bedtools intersect -a {params.ex} -b <(printf '{params.bed_str}') | cut -f 1-3 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a}}' > {output.ex_f}
+        bedtools intersect -a {params.ex} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3 | awk -v OFS='\t' 'NR==1 {{a=$2}} {{print $1,$2-a, $3-a}}' > {output.ex_f}
         """
 
 rule multi_pop_stats:
@@ -253,3 +258,15 @@ rule log_branch:
     run:
         tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==wildcards.edge)].to_csv("../../output/sims_info.tsv", sep="\t", header=False, index=False, mode="a")
 
+rule dedup_logs:
+    input: all_replicates
+    output: touch("../../output/tmp/dedup_log.txt")
+    run:
+        full_path = "../../output/sims_info.tsv"
+        if os.path.exists(full_path):
+            sims_full = pd.read_csv(full_path, header=None, sep="\t", converters=defaultdict(lambda i: str))
+            cols = sims_full.columns.to_list()
+            cols.remove(23)
+            cols.remove(15)
+            sims_full.drop_duplicates(subset=cols, keep="last", inplace=True)
+            sims_full.to_csv(full_path, sep="\t", header=False, index=False, mode="w")
