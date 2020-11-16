@@ -127,7 +127,7 @@ def add_blen_from_meta(tree, meta, rand_id):
     return tree
 
 
-def union_tseqs(tree, rand_id, rep):
+def union_tseqs(tree, rand_id, rep, trees_path):
     """
     Given a `dendropy.tree` object with annotated `edge_lengths`, a `rand_id`
     identifier and a replicate number `rep`, this performs the

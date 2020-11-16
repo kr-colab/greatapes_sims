@@ -9,6 +9,7 @@ import pandas as pd
 import warnings
 import functools
 import argparse
+from helper_functions import *
 
 # variables
 parser = argparse.ArgumentParser(description='Perform the union and output stats from tree sequences.')
@@ -74,7 +75,7 @@ tree = build_tree_from_df(edges)
 tree = add_blen_from_meta(tree, sims_full, args["rand_id"])
 
 # performing the union
-tsu,  pops = union_tseqs(tree,args["rand_id"],args["rep"])
+tsu,  pops = union_tseqs(tree,args["rand_id"],args["rep"], trees_path)
 tsu = pyslim.load_tables(tsu.tables)
 print(tsu.slim_generation)
 assert tsu.max_root_time.is_integer()
