@@ -95,6 +95,7 @@ tsu.dump(f"{trees_path}{args['rand_id']}_rep{args['rep']}.union.trees")
 # refactoring time if simulation was run with rescaling
 if args['rescf'] > 1:
     tsu = refactor_time(tsu, args['rescf'], operator.imul)
+    tsu.slim_generation *= args['rescf']
 
 # recapitating
 recomb_map = msprime.RecombinationMap.read_hapmap(rec_hap_path)
