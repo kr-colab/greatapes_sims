@@ -4,23 +4,21 @@ import msprime
 import dendropy
 import numpy as np
 import pandas as pd
+import operator
 
-def add_time(ts, dt):
+def refactor_time(ts, factor, operation=operator.iadd):
     '''
-    This function returns a tskit.TreeSequence in which `dt`
-    has been added to the times in all nodes.
+    This function returns a tskit.TreeSequence in which the times columns in
+    the nodes, migrations and mutations table have been refactored by `factor`
+    using an `operation`.
+    `operation` is a function from the module operator (e.g., `iadd` or `imul`)
+    `operator.iadd(x, factor)` is equivalent to `x += factor`
+    `operator.imul(x, factor)` is equivalent to `x *= factor`
     '''
-    tables = ts.tables
-    nodes_dict = tables.nodes.asdict()
-    nodes_dict['time'] = nodes_dict['time'] + dt
-    tables.nodes.set_columns(**nodes_dict)
-    migrations_dict = tables.migrations.asdict()
-    migrations_dict['time'] = migrations_dict['time'] + dt
-    tables.migrations.set_columns(**migrations_dict)
-    mutations_dict = tables.mutations.asdict()
-    if not np.any(np.isnan(mutations_dict['time'])):
-        mutations_dict['time'] = mutations_dict['time'] + dt
-        tables.mutations.set_columns(**mutations_dict)
+    tables = ts.dump_tables()
+    for table in (tables.migrations, tables.mutations, tables.nodes):
+        if not np.any(np.isnan(table.time)):
+            table.time = operation(table.time, factor)
     return pyslim.SlimTreeSequence.load_tables(tables)
 
 
@@ -154,9 +152,9 @@ def union_tseqs(tree, rand_id, rep, trees_path):
         #check if times need be shifted
         print(f"Before shift\ttime 0: {tseqs[0].max_root_time}\ttime 1: {tseqs[1].max_root_time}")
         if history_len[1] > history_len[0]:
-            tseqs[0] = add_time(tseqs[0], history_len[1]-history_len[0])
+            tseqs[0] = refactor_time(tseqs[0], history_len[1]-history_len[0])
         elif history_len[0] > history_len[1]:
-            tseqs[1] = add_time(tseqs[1], history_len[0]-history_len[1])
+            tseqs[1] = refactor_time(tseqs[1], history_len[0]-history_len[1])
         print(f"After shift\ttime 0: {tseqs[0].max_root_time}\ttime 1: {tseqs[1].max_root_time}")
         node_mapping = match_nodes(tseqs, node.age)
         sub_metadata(tseqs)

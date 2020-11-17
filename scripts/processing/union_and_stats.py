@@ -9,6 +9,7 @@ import pandas as pd
 import warnings
 import functools
 import argparse
+import operator
 from helper_functions import *
 
 # variables
@@ -17,8 +18,9 @@ parser.add_argument('rand_id', type=str)
 parser.add_argument('rep', type=str)
 parser.add_argument('total_mut_rate', type=float)
 parser.add_argument('region_mut_rate', type=float)
-parser.add_argument('sample_size', type=int)
 parser.add_argument('win_size', type=lambda x: int(float(x)))
+parser.add_argument('sample_size', type=int)
+parser.add_argument('--rescf', type=int, default=1)
 parser.add_argument('--recapN', type=int, default=10000, required=False)
 parser.add_argument('--seed', type=int, default=8991, required=False)
 
@@ -90,13 +92,17 @@ slim_gen = tsu.slim_generation
 assert len(set([tsu.node(u).population for t in tsu.trees() for u in t.roots])) == 1
 tsu.dump(f"{trees_path}{args['rand_id']}_rep{args['rep']}.union.trees")
 
+# refactoring time if simulation was run with rescaling
+if rescf > 1:
+    tsu = refactor_time(tsu, rescf, operator.imul)
 
+# recapitating
 recomb_map = msprime.RecombinationMap.read_hapmap(rec_hap_path)
 recap_tsu = tsu.recapitate(recombination_map=recomb_map, Ne=args["recapN"])
 del tsu # too much ram
 print(slim_gen, recap_tsu.max_root_time, recap_tsu.num_mutations)
 
-
+# mutating
 mut_map = msp_mutation_rate_map(exons, args["total_mut_rate"], args["region_mut_rate"], int(recap_tsu.sequence_length))
 model_recap = msprime.SLiMMutationModel(type=3) # TODO: figure out the type number from the treeseq
 model_slim = msprime.SLiMMutationModel(type=4) # TODO: figure out the type number from the treeseq
