@@ -60,7 +60,11 @@ sims_sum = pd.read_csv(sims_sum_path,sep="\t")
 sims_full= pd.read_csv(sims_full_path,sep="\t", header=None)
 header = pd.read_csv(sims_header_path,sep="\t")
 sims_full.columns = header.columns
-
+# exons file
+exons = pd.read_csv(ex_path,sep="\t")
+# removing extraneous columns?
+exons = exons.iloc[:,:3]
+print(exons, exons.shape)
 
 # getting all output files and grouping by args["rand_id"] and args["rep"]
 tree_files = glob.glob(trees_path+"*[0-9].trees")
@@ -93,14 +97,11 @@ del tsu # too much ram
 print(slim_gen, recap_tsu.max_root_time, recap_tsu.num_mutations)
 
 
-# In[149]:
-
-
-mut_map = msp_mutation_rate_map(exons, args["total_mut_rate"], region_mut_rate, int(recap_tsu.sequence_length))
+mut_map = msp_mutation_rate_map(exons, args["total_mut_rate"], args["region_mut_rate"], int(recap_tsu.sequence_length))
 model_recap = msprime.SLiMMutationModel(type=3) # TODO: figure out the type number from the treeseq
 model_slim = msprime.SLiMMutationModel(type=4) # TODO: figure out the type number from the treeseq
 print("Before mutate:", recap_tsu.num_mutations)
-recap_tsu = msprime.mutate(recap_tsu, end_time=slim_gen, model=model_recap, rate=total_mut_rate, keep=True)
+recap_tsu = msprime.mutate(recap_tsu, end_time=slim_gen, model=model_recap, rate=args["total_mut_rate"], keep=True)
 print("Mutations added in the recapitation:", recap_tsu.num_mutations)
 recap_tsu = msprime.mutate(recap_tsu, start_time=slim_gen, model=model_slim, rate=mut_map, keep=True)
 print("Total mutations:", recap_tsu.num_mutations)
