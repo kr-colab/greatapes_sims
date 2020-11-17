@@ -93,8 +93,8 @@ assert len(set([tsu.node(u).population for t in tsu.trees() for u in t.roots])) 
 tsu.dump(f"{trees_path}{args['rand_id']}_rep{args['rep']}.union.trees")
 
 # refactoring time if simulation was run with rescaling
-if rescf > 1:
-    tsu = refactor_time(tsu, rescf, operator.imul)
+if args['rescf'] > 1:
+    tsu = refactor_time(tsu, args['rescf'], operator.imul)
 
 # recapitating
 recomb_map = msprime.RecombinationMap.read_hapmap(rec_hap_path)
