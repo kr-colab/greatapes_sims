@@ -12,7 +12,6 @@ import os
 def win_bed_str(wildcards):
     """Creates a bed string from the tmp data.frame, getting chrom, start, end and padding"""
     chrom, start, end = tmp.loc[tmp.rand_id==wildcards.rand_id,["chr","padded_start","padded_end"]].iloc[0].to_list()
-    print(tmp.loc[tmp.rand_id==wildcards.rand_id,["chr","padded_start","padded_end"]].iloc[0])
     start = int(start)
     end = int(end)
     return(f"{chrom}\\t{start}\\t{end}\\n")
@@ -62,8 +61,8 @@ delrate = [x*total_mu for x in [0,0.3, 0.1]]
 posrate = [x*total_mu for x in [0,0.005, 0.0005]]
 delcoef = [0,-0.03, -0.015]
 poscoef = [0,0.01]
-sample_size=10 # for stats
-win_size=1000000 # for stats
+sample_size = 10 # for stats
+win_sizes = [10000, 100000, 1000000] # for stats
 
 ## Getting chromosome sizes from the recombination map
 rec_rates = pd.read_csv(rec_file, sep="\t")
@@ -89,7 +88,6 @@ for i, row in edges_info.iterrows():
         row[key] = [row[key]]
     row.update(params_dict)
     tmp = pd.concat([tmp,expand_grid(row)])
-print(tmp)
 #these boolean masks are here bc some parameter combs are nonsensical (e.g., no sim should have 0 rateortion of positive mutations and pos coeff non-zero)
 both_p = np.logical_and(tmp.posrate>0,tmp.poscoef > 0)
 both_p_zero = np.logical_and(tmp.posrate==0,tmp.poscoef == 0)
@@ -115,7 +113,6 @@ for chr, win_len in chroms.itertuples(index=False):
 ### Sampling some windows
 if n_sampled_windows > 0:
     windowed = windowed.sample(n=n_sampled_windows,random_state=0)
-print(windowed) 
 ## Expanding tmp and windows
 windowed_tmp = (
       tmp.assign(key=1)
@@ -175,7 +172,6 @@ tmp.iloc[0:0].to_csv("../../output/header_sims_info.tsv", sep="\t", header=True,
 # I'm getting the terminals bc not all trees are supposed to be overlayed with mutations and recapped
 terminals=list(set(edges_meta.edge.tolist()) - set(edges_meta.parent.tolist()))
 terminals.sort()
-print(tmp.edge)
 #terminals=["eastern-chimp"]
 terminal_prefixes = np.array(tmp[tmp.edge.isin(terminals)].outfile_pre)
 nodes_prefixes = tmp.outfile_pre
@@ -185,12 +181,13 @@ pad=len(str(nreps))
 terminal_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(nreps) for pre in terminal_prefixes]
 nodes_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(nreps) for pre in nodes_prefixes]
 
-
+# stats files
+stats_files = [f"../../output/rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.npz" for rand_id in rands for rep in range(nreps) for wsize in win_sizes]
 # this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
 ruleorder: win_intersect > root > branch 
 
 rule all:
-    input: tmp.log.to_list()+nodes_outfiles+["../../output/tmp/dedup_log.txt"]
+    input: tmp.log.to_list()+nodes_outfiles+["../../output/tmp/dedup_log.txt"]+stats_files
 
 rule win_intersect:
     params: ex=ex_file, rec=rec_file, bed_str=win_bed_str, chrom= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"chr"].iloc[0], start= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_start"].iloc[0], end= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_end"].iloc[0]
@@ -208,7 +205,7 @@ rule root:
     params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge==root_edge) & (tmp.rand_id==wildcards.rand_id)].par_string.item()
     output: f"../../output/{root_edge}_{{rand_id}}_rep{{rep}}.trees"
     benchmark: f"../../benchmarks/{root_edge}_{{rand_id}}_rep{{rep}}.slim.benchmark.txt"
-    resources: mem_mb=128000, runtime=10*24*60
+    resources: mem_mb=lambda wildcards, attempt: attempt * 32000, runtime=10*24*60
     threads: 2
     shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
 
@@ -224,7 +221,7 @@ rule branch:
     wildcard_constraints: edge=f"(?!{root_edge}).*", rep="[0-9]+"
     output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
-    resources: mem_mb=156000, runtime=10*24*60
+    resources: mem_mb=lambda wildcards, attempt: attempt * 36000, runtime=10*24*60
     threads: 2
     shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
 
@@ -247,3 +244,13 @@ rule dedup_logs:
             cols.remove(15)
             sims_full.drop_duplicates(subset=cols, keep="last", inplace=True)
             sims_full.to_csv(full_path, sep="\t", header=False, index=False, mode="w")
+
+rule union_stats:
+    input: lambda wildcards: (tmp[tmp.rand_id == wildcards.rand_id].outfile_pre+"_rep"+str(wildcards.rep).zfill(pad)+".trees").tolist()
+    params: region_mut_rate = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].mu.unique()[0], rf = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].rescf.unique()[0], total_mut_rate = total_mu, recapN=10000, seed=seed
+    output: "../../output/rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.npz" 
+    benchmark: "../../benchmarks/{rand_id}_rep{rep}_win-size_{win_size}_sample-size_{sample_size}.slim.benchmark.txt"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=10*24*60
+    threads: 2
+    shell:
+        "python3 ../processing/union_and_stats.py {wildcards.rand_id} {wildcards.rep} {params.total_mut_rate} {params.region_mut_rate} {wildcards.win_size} {wildcards.sample_size} --rescf {params.rf} --recapN {params.recapN} --seed {params.seed}"
