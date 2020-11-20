@@ -245,6 +245,7 @@ rule dedup_logs:
             sims_full.drop_duplicates(subset=cols, keep="last", inplace=True)
             sims_full.to_csv(full_path, sep="\t", header=False, index=False, mode="w")
 
+#TODO: add file names to all, maybe expanding on diff winsizes
 rule union_stats:
     input: lambda wildcards: (tmp[tmp.rand_id == wildcards.rand_id].outfile_pre+"_rep"+str(wildcards.rep).zfill(pad)+".trees").tolist()
     params: region_mut_rate = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].mu.unique()[0], rf = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].rescf.unique()[0], total_mut_rate = total_mu, recapN=10000, seed=seed
@@ -253,4 +254,14 @@ rule union_stats:
     resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=10*24*60
     threads: 2
     shell:
-        "python3 ../processing/union_and_stats.py {wildcards.rand_id} {wildcards.rep} {params.total_mut_rate} {params.region_mut_rate} {wildcards.win_size} {wildcards.sample_size} --rescf {params.rf} --recapN {params.recapN} --seed {params.seed}"
+        "python3 ../py/union_recap_mut.py {wildcards.rand_id} {wildcards.rep} {params.total_mut_rate} {params.region_mut_rate} --rescf {params.rf} --recapN {params.recapN} --seed {params.seed}"
+
+rule stats:
+    input: "../../output/{rand_id}_{rep}.union.recap.mut.trees", "../../output/{rand_id}_{rep}.pops" 
+    params: seed=seed
+    output: "../../output/rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.npz"
+    benchmark: "../../benchmarks/{rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.stats.benchmark.txt"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=10*24*60
+    threads: 2
+    shell:
+        "python3 ../py/stats_from_ts.py {wildcards.rand_id} {wildcards.rep} {wildcards.win_size} {wildcards.sample_size}"
