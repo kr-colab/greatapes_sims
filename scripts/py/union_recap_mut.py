@@ -93,7 +93,7 @@ slim_gen = int(tsu.max_root_time) * args['rescf']
 if args['rescf'] > 1:
     tsu = refactor_time(tsu, args['rescf'], operator.imul)
 
-tsu.dump(out_path)
+tsu.dump(union_path)
 with open(pops_path, "w") as f:
     f.write(str(pops))
 
