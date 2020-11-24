@@ -111,4 +111,4 @@ recap_tsu = msprime.mutate(recap_tsu, end_time=slim_gen, model=model, rate=args[
 print("Mutations added in the recapitation:", recap_tsu.num_mutations)
 recap_tsu = msprime.mutate(recap_tsu, start_time=slim_gen, model=model, rate=mut_map, keep=True, kept_mutations_before_end_time=True)
 print("Total mutations:", recap_tsu.num_mutations)
-tsu.dump(recap_mut_path)
+recap_tsu.dump(recap_mut_path)

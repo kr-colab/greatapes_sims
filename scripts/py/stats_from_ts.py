@@ -11,6 +11,7 @@ import argparse
 import operator
 import os
 
+parser = argparse.ArgumentParser(description='Gets stats from unioned tree sequence')
 parser.add_argument('rand_id', type=str)
 parser.add_argument('rep', type=str)
 parser.add_argument('win_size', type=lambda x: int(float(x)))
@@ -18,10 +19,11 @@ parser.add_argument('sample_size', type=int)
 parser.add_argument('--seed', type=int, default=8991, required=False)
 
 args = vars(parser.parse_args())
+out_path = "../../output/"
 
 # Loading tree sequence and list with populations
-recap_mut_path = f"{trees_path}{args['rand_id']}_rep{args['rep']}.union.recap.mut.trees"
-pops_path = f"{trees_path}{args['rand_id']}_rep{args['rep']}.pops"
+recap_mut_path = f"{out_path}{args['rand_id']}_rep{args['rep']}.union.recap.mut.trees"
+pops_path = f"{out_path}{args['rand_id']}_rep{args['rep']}.pops"
 assert os.path.exists(recap_mut_path) and os.path.exists(pops_path), f"Trees file or .pops file does not exist for {args['rand_id']}_{args['rep']}"
 recap_tsu = pyslim.load(recap_mut_path)
 with open(pops_path, "r") as f:
@@ -54,4 +56,4 @@ assert dxy.shape[1] == ((len(pops)**2 - len(pops))/2) + len(pops)
 labels = np.array([[pops[i],pops[j]] for i, j in indexes])
 
 # saving to output
-np.savez(f"{trees_path}rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", windows, dxy, labels)
+np.savez(f"{out_path}rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", windows, dxy, labels)
