@@ -16,9 +16,11 @@ parser.add_argument('rand_id', type=str)
 parser.add_argument('rep', type=str)
 parser.add_argument('win_size', type=lambda x: int(float(x)))
 parser.add_argument('sample_size', type=int)
+parser.add_argument('coords_dict', type=str, help="String of a dictionary with padded and non-padded start and ends of the chromosomic region")
 parser.add_argument('--seed', type=int, default=8991, required=False)
 
 args = vars(parser.parse_args())
+coords_dict = eval(args['coords_dict'])
 out_path = "../../output/"
 
 # Loading tree sequence and list with populations
@@ -35,15 +37,25 @@ rng = np.random.default_rng(args['seed'])
 # TODO: sample individuals not nodes
 pop_samples = [recap_tsu.samples(population_id=i+1) for i in range(len(pops))]
 contemp_time = [np.min(recap_tsu.tables.nodes.time[samples]) for samples in pop_samples]
-contemp_samples = [rng.choice(pop_samples[pid][recap_tsu.tables.nodes.time[pop_samples[pid]] == contemp_time[pid]], args["sample_size"], replace=False)
-                                                        for pid in range(len(pop_samples))]
+contemp_samples = [rng.choice(pop_samples[pid][recap_tsu.tables.nodes.time[pop_samples[pid]] == contemp_time[pid]], args["sample_size"], replace=False) for pid in range(len(pop_samples))]
 
 
 # windowing
-windows = np.arange(start=0,stop=recap_tsu.sequence_length, step=args["win_size"])
-if not np.isclose(recap_tsu.sequence_length, windows[-1], rtol=1e-12):
-    windows = np.append(windows, [recap_tsu.sequence_length])
-
+start = coords_dict['start']-coords_dict['padded_start']
+stop = (coords_dict['end']-coords_dict['padded_start'])
+stop_w_pad = (coords_dict['padded_end']-coords_dict['padded_start'])
+assert recap_tsu.sequence_length <= stop
+assert abs(recap_tsu.sequence_length - (coords_dict['padded_end']-coords_dict['padded_start'])) < 1e-14
+coord_windows = np.arange(start=coords_dict['start'], stop=coords_dict['end']+1, step=args['win_size'])
+windows = np.arange(start=start,stop=stop+1, step=args["win_size"])
+assert coord_windows.shape == windows.shape
+if start > 0:
+    windows = np.insert(windows, 0, [0])
+if stop_w_pad > stop:
+    windows = np.append(windows, [stop_w_pad])
+print(recap_tsu.sequence_length)
+print(start, stop)
+print(windows, coord_windows)
 # obtaining indexes for all possible pairs (including diversity, i.e. i==j for (i,j))
 indexes = [(x, y) for x in range(len(pops)) for y in range(len(pops)) if x >= y]
 
@@ -55,5 +67,15 @@ assert dxy.shape[1] == ((len(pops)**2 - len(pops))/2) + len(pops)
 # getting the species labels
 labels = np.array([[pops[i],pops[j]] for i, j in indexes])
 
+# slicing out the padded windows
+if start > 0:
+    dxy = dxy[1:]
+    windows = np.delete(windows, 1)
+if stop_w_pad > stop:
+    dxy = dxy[:-1]
+    windows = windows [:-1]
+
+assert dxy.shape[0] == windows.shape[0] == coord_windows.shape[0]
+
 # saving to output
-np.savez(f"{out_path}rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", windows, dxy, labels)
+np.savez(f"{out_path}rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", windows, coord_windows, dxy, labels)
