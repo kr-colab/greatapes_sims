@@ -82,7 +82,13 @@ union_path = f"{trees_path}{args['rand_id']}_rep{args['rep']}.union.trees"
 recap_mut_path = f"{trees_path}{args['rand_id']}_rep{args['rep']}.union.recap.mut.trees"
 pops_path = f"{trees_path}{args['rand_id']}_rep{args['rep']}.pops"
 tsu,  pops = union_tseqs(tree,args["rand_id"],args["rep"], trees_path)
+tcu = tsu.dump_tables()
+del tsu
+if np.any(np.isnan(tcu.mutations.time)):
+    # TODO: remove this once using slim that adds time
+    tcu.compute_mutation_times()
 tsu = pyslim.load_tables(tsu.tables)
+del tcu
 
 # asserting within population coalescen
 assert len(set([tsu.node(u).population for t in tsu.trees() for u in t.roots])) == 1
