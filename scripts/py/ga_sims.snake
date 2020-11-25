@@ -171,6 +171,7 @@ tmp.iloc[0:0].to_csv("../../output/header_sims_info.tsv", sep="\t", header=True,
 
 # I'm getting the terminals bc not all trees are supposed to be overlayed with mutations and recapped
 terminals=list(set(edges_meta.edge.tolist()) - set(edges_meta.parent.tolist()))
+all_nodes = list(set(edges_meta.edge.tolist()))
 terminals.sort()
 #terminals=["eastern-chimp"]
 terminal_prefixes = np.array(tmp[tmp.edge.isin(terminals)].outfile_pre)
@@ -184,7 +185,7 @@ nodes_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(nreps
 # stats files
 stats_files = [f"../../output/rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.npz" for rand_id in rands for rep in range(nreps) for wsize in win_sizes]
 # this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
-ruleorder: win_intersect > root > branch 
+ruleorder: win_intersect > root > branch > dedup_logs > union_recap_mut
 
 rule all:
     input: tmp.log.to_list()+nodes_outfiles+["../../output/tmp/dedup_log.txt"]+stats_files
@@ -233,7 +234,7 @@ rule log_branch:
         tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==wildcards.edge)].to_csv("../../output/sims_info.tsv", sep="\t", header=False, index=False, mode="a")
 
 rule dedup_logs:
-    input: nodes_outfiles 
+    input: nodes_outfiles, [f"../../output/tmp/{edge}_{rand_id}.log" for edge in all_nodes for rand_id in rands]
     output: touch("../../output/tmp/dedup_log.txt")
     run:
         full_path = "../../output/sims_info.tsv"
@@ -246,7 +247,7 @@ rule dedup_logs:
             sims_full.to_csv(full_path, sep="\t", header=False, index=False, mode="w")
 
 rule union_recap_mut:
-    input: lambda wildcards: (tmp[tmp.rand_id == wildcards.rand_id].outfile_pre+"_rep"+str(wildcards.rep).zfill(pad)+".trees").tolist()
+    input: lambda wildcards: (tmp[tmp.rand_id == wildcards.rand_id].outfile_pre+"_rep"+str(wildcards.rep).zfill(pad)+".trees").tolist(), [f"../../output/tmp/{edge}_{{rand_id}}.log" for edge in all_nodes]
     params: region_mut_rate = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].mu.unique()[0], rf = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].rescf.unique()[0], total_mut_rate = total_mu, recapN=10000, seed=seed
     output: "../../output/{rand_id}_rep{rep}.union.recap.mut.trees", "../../output/{rand_id}_rep{rep}.pops" 
     benchmark: "../../benchmarks/{rand_id}_rep{rep}.union.benchmark.txt"
