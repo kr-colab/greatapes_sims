@@ -87,7 +87,7 @@ del tsu
 if np.any(np.isnan(tcu.mutations.time)):
     # TODO: remove this once using slim that adds time
     tcu.compute_mutation_times()
-tsu = pyslim.load_tables(tsu.tables)
+tsu = pyslim.load_tables(tcu)
 del tcu
 
 # asserting within population coalescen
