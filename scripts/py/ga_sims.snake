@@ -16,6 +16,11 @@ def win_bed_str(wildcards):
     end = int(end)
     return(f"{chrom}\\t{start}\\t{end}\\n")
 
+def get_coords_dict(wildcards):
+    """Creates a dict string from the tmp data.frame, getting the coords"""
+    start, end, padded_start, padded_end = tmp.loc[tmp.rand_id==wildcards.rand_id,["start","end","padded_start","padded_end"]].iloc[0].to_list()
+    return(f'{{\\"start\\": {start}, \\"end\\": {end}, \\"padded_start\\":{padded_start}, \\"padded_end\\":{padded_end}}}')
+
 def expand_grid(data_dict):
     """Create a dataframe from every combination of given values."""
     rows = itertools.product(*data_dict.values())
@@ -251,17 +256,17 @@ rule union_recap_mut:
     params: region_mut_rate = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].mu.unique()[0], rf = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].rescf.unique()[0], total_mut_rate = total_mu, recapN=10000, seed=seed
     output: "../../output/{rand_id}_rep{rep}.union.recap.mut.trees", "../../output/{rand_id}_rep{rep}.pops" 
     benchmark: "../../benchmarks/{rand_id}_rep{rep}.union.benchmark.txt"
-    resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=10*24*60
+    resources: mem_mb=lambda wildcards, attempt: attempt * 96000, runtime=10*24*60
     threads: 2
     shell:
         "python3 ../py/union_recap_mut.py {wildcards.rand_id} {wildcards.rep} {params.total_mut_rate} {params.region_mut_rate} --rescf {params.rf} --recapN {params.recapN} --seed {params.seed}"
 
 rule stats:
     input: "../../output/{rand_id}_rep{rep}.union.recap.mut.trees", "../../output/{rand_id}_rep{rep}.pops" 
-    params: seed=seed
+    params: seed=seed, coords_dict=get_coords_dict
     output: "../../output/rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.npz"
     benchmark: "../../benchmarks/{rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.stats.benchmark.txt"
     resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=10*24*60
     threads: 2
     shell:
-        "python3 ../py/stats_from_ts.py {wildcards.rand_id} {wildcards.rep} {wildcards.win_size} {wildcards.sample_size}"
+        "python3 ../py/stats_from_ts.py {wildcards.rand_id} {wildcards.rep} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""

@@ -43,16 +43,19 @@ contemp_samples = [rng.choice(pop_samples[pid][recap_tsu.tables.nodes.time[pop_s
 # windowing
 start = coords_dict['start']-coords_dict['padded_start']
 stop = (coords_dict['end']-coords_dict['padded_start'])
-stop_w_pad = (coords_dict['padded_end']-coords_dict['padded_start'])
-assert recap_tsu.sequence_length <= stop
-assert abs(recap_tsu.sequence_length - (coords_dict['padded_end']-coords_dict['padded_start'])) < 1e-14
+expected_length = (coords_dict['padded_end']-coords_dict['padded_start'])
+assert abs(recap_tsu.sequence_length - expected_length) < 1e-14
+# coordinate windows: windows in actual chromosome scale, this only matters if the simulations are not chromosome scale, but instead were windowed
 coord_windows = np.arange(start=coords_dict['start'], stop=coords_dict['end']+1, step=args['win_size'])
+# windows but in simulation size scale (0-L)
 windows = np.arange(start=start,stop=stop+1, step=args["win_size"])
 assert coord_windows.shape == windows.shape
+
+# dealing with padding
 if start > 0:
     windows = np.insert(windows, 0, [0])
-if stop_w_pad > stop:
-    windows = np.append(windows, [stop_w_pad])
+if expected_length > stop:
+    windows = np.append(windows, [expected_length])
 print(recap_tsu.sequence_length)
 print(start, stop)
 print(windows, coord_windows)
@@ -71,11 +74,12 @@ labels = np.array([[pops[i],pops[j]] for i, j in indexes])
 if start > 0:
     dxy = dxy[1:]
     windows = np.delete(windows, 1)
-if stop_w_pad > stop:
+if expected_length > stop:
     dxy = dxy[:-1]
     windows = windows [:-1]
 
-assert dxy.shape[0] == windows.shape[0] == coord_windows.shape[0]
+print(dxy.shape, windows.shape, coord_windows.shape)
+assert (dxy.shape[0]+1) == windows.shape[0] == coord_windows.shape[0]
 
 # saving to output
-np.savez(f"{out_path}rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", windows, coord_windows, dxy, labels)
+np.savez(f"{out_path}rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", windows=windows, coord_windows=coord_windows, dxy=dxy, labels=labels)
