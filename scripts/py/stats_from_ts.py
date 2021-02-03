@@ -82,4 +82,4 @@ print(dxy.shape, windows.shape, coord_windows.shape)
 assert (dxy.shape[0]+1) == windows.shape[0] == coord_windows.shape[0]
 
 # saving to output
-np.savez(f"{out_path}rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", windows=windows, coord_windows=coord_windows, dxy=dxy, labels=labels)
+np.savez(f"{out_path}rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", windows=windows[:-1], coord_windows=coord_windows[:-1], dxy=dxy, labels=labels)

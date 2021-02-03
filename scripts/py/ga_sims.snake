@@ -16,10 +16,10 @@ def win_bed_str(wildcards):
     end = int(end)
     return(f"{chrom}\\t{start}\\t{end}\\n")
 
-def get_coords_dict(wildcards):
+def get_coords_dict(rid):
     """Creates a dict string from the tmp data.frame, getting the coords"""
-    start, end, padded_start, padded_end = tmp.loc[tmp.rand_id==wildcards.rand_id,["start","end","padded_start","padded_end"]].iloc[0].to_list()
-    return(f'{{\\"start\\": {start}, \\"end\\": {end}, \\"padded_start\\":{padded_start}, \\"padded_end\\":{padded_end}}}')
+    start, end, padded_start, padded_end = tmp.loc[tmp.rand_id==rid,["start","end","padded_start","padded_end"]].iloc[0].to_list()
+    return {"start": start, "end": end, "padded_start":padded_start, "padded_end":padded_end}
 
 def expand_grid(data_dict):
     """Create a dataframe from every combination of given values."""
@@ -101,23 +101,25 @@ both_d_zero = np.logical_and(tmp.delrate==0,tmp.delcoef == 0)
 use_param_comb = np.logical_and(np.logical_or(both_p,both_p_zero),np.logical_or(both_d, both_d_zero))
 tmp = tmp[use_param_comb]
 ## Creating chromosome windows to be simulated
-windowed = pd.DataFrame(columns = ["chr", "start", "end", "clen"])
-for chr, win_len in chroms.itertuples(index=False):
-    clen = chr_sizes[chr_sizes.chr == chr].length.item()
+windowed = pd.DataFrame(columns = ["chr", "start", "end", "win_id", "win_len", "clen"])
+for chrom, win_len in chroms.itertuples(index=False):
+    clen = chr_sizes[chr_sizes.chr == chrom].length.item()
     if win_len < 0:
-        windowed = windowed.append({"chr": chr, "start": 0, "end": clen, "clen": clen}, ignore_index=True)
+        windowed = windowed.append({"chr": chrom, "start": 0, "end": clen, "win_id": 0, "win_len": win_len, "clen": clen}, ignore_index=True)
         continue
     if clen < win_len:
-        windowed = windowed.append({"chr": chr, "start": 0, "end": win_len, "clen": clen}, ignore_index=True)
+        windowed = windowed.append({"chr": chrom, "start": 0, "end": win_len, "win_id": 0, "win_len": win_len, "clen": clen}, ignore_index=True)
         continue
+    counter = 0
     for w_start in range(0, clen, win_len):
         w_end = w_start + win_len
         if w_end >= clen:
             w_end = clen
-        windowed = windowed.append({"chr": chr, "start": w_start, "end": w_end, "clen": clen}, ignore_index=True)
+        windowed = windowed.append({"chr": chrom, "start": w_start, "end": w_end, "win_id": counter, "win_len": win_len, "clen": clen}, ignore_index=True)
+        counter += 1
 ### Sampling some windows
 if n_sampled_windows > 0:
-    windowed = windowed.sample(n=n_sampled_windows,random_state=0)
+    windowed = windowed.groupby(["chr", "win_len"]).sample(n=n_sampled_windows,random_state=0)
 ## Expanding tmp and windows
 windowed_tmp = (
       tmp.assign(key=1)
@@ -145,6 +147,9 @@ tmp.reset_index(drop=True, inplace=True)
 tmp["numid"] = tmp.groupby(diff_cols[1:]).ngroup()
 rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
 tmp["rand_id"] = rands[tmp["numid"].tolist()]
+tmp["supnumid"] = tmp.groupby(["chr", "win_len", "padding"]+diff_cols[5:]).ngroup()
+sup_rands=np.array([id_generator(size=18) for i in range((tmp.supnumid.max()+1))])
+tmp["sup_rand_id"] = sup_rands[tmp["supnumid"].tolist()]
 tmp["outfile_pre"] = tmp.edge+"_"+tmp.rand_id
 assert not tmp.outfile_pre.duplicated().any(), "one of the outfile names is duplicated"
 tmp.outfile_pre=out_path+tmp.outfile_pre
@@ -163,7 +168,7 @@ tmp["par_string"]=tmp[pars].apply(get_par_string, axis=1)
 today = dt.datetime.today().strftime('%H%M_%d%m%Y') 
 tmp["date"] = today
 tmp["log"] = "../../output/tmp/"+tmp.edge+"_"+tmp.rand_id+".log"
-par_df = tmp[diff_cols[1:]+["rand_id"]].copy()
+par_df = tmp[diff_cols[1:]+["rand_id", "sup_rand_id"]].copy()
 if os.path.exists("../../output/rand_id_params.tsv"):
     ex_par_df = pd.read_csv("../../output/rand_id_params.tsv", header=None, names=par_df.columns, sep="\t", converters=defaultdict(lambda i: str))
     par_df = pd.concat([par_df, ex_par_df], ignore_index=True)
@@ -188,12 +193,18 @@ terminal_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(nr
 nodes_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(nreps) for pre in nodes_prefixes]
 
 # stats files
-stats_files = [f"../../output/rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.npz" for rand_id in rands for rep in range(nreps) for wsize in win_sizes]
+def get_stats_outfiles_from_rands(rand_ids, win_sizes, reps, prefix=""):
+    return [f"../../output/{prefix}rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.npz" for rand_id in rand_ids for rep in reps for wsize in win_sizes]
+stats_files = get_stats_outfiles_from_rands(rands, win_sizes, range(nreps)) 
+
+# win_joined stats files
+win_joined = get_stats_outfiles_from_rands(sup_rands, win_sizes, range(nreps), prefix="joined_sup-")
+
 # this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
 ruleorder: win_intersect > root > branch > dedup_logs > union_recap_mut
 
 rule all:
-    input: tmp.log.to_list()+nodes_outfiles+["../../output/tmp/dedup_log.txt"]+stats_files
+    input: tmp.log.to_list()+nodes_outfiles+["../../output/tmp/dedup_log.txt"]+stats_files+win_joined
 
 rule win_intersect:
     params: ex=ex_file, rec=rec_file, bed_str=win_bed_str, chrom= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"chr"].iloc[0], start= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_start"].iloc[0], end= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_end"].iloc[0]
@@ -211,7 +222,7 @@ rule root:
     params: recipe = recipe_path, s = lambda wildcards: tmp[(tmp.edge==root_edge) & (tmp.rand_id==wildcards.rand_id)].par_string.item()
     output: f"../../output/{root_edge}_{{rand_id}}_rep{{rep}}.trees"
     benchmark: f"../../benchmarks/{root_edge}_{{rand_id}}_rep{{rep}}.slim.benchmark.txt"
-    resources: mem_mb=lambda wildcards, attempt: attempt * 32000, runtime=10*24*60
+    resources: mem_mb=lambda wildcards, attempt: attempt * 32000, runtime=5*24*60
     threads: 2
     shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
 
@@ -227,7 +238,7 @@ rule branch:
     wildcard_constraints: edge=f"(?!{root_edge}).*", rep="[0-9]+"
     output: "../../output/{edge}_{rand_id}_rep{rep}.trees"
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
-    resources: mem_mb=lambda wildcards, attempt: attempt * 36000, runtime=10*24*60
+    resources: mem_mb=lambda wildcards, attempt: attempt * 36000, runtime=5*24*60
     threads: 2
     shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
 
@@ -256,17 +267,24 @@ rule union_recap_mut:
     params: region_mut_rate = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].mu.unique()[0], rf = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].rescf.unique()[0], total_mut_rate = total_mu, recapN=10000, seed=seed
     output: "../../output/{rand_id}_rep{rep}.union.recap.mut.trees", "../../output/{rand_id}_rep{rep}.pops" 
     benchmark: "../../benchmarks/{rand_id}_rep{rep}.union.benchmark.txt"
-    resources: mem_mb=lambda wildcards, attempt: attempt * 96000, runtime=10*24*60
+    resources: mem_mb=lambda wildcards, attempt: attempt * 96000, runtime=5*24*60
     threads: 2
     shell:
         "python3 ../py/union_recap_mut.py {wildcards.rand_id} {wildcards.rep} {params.total_mut_rate} {params.region_mut_rate} --rescf {params.rf} --recapN {params.recapN} --seed {params.seed}"
 
 rule stats:
     input: "../../output/{rand_id}_rep{rep}.union.recap.mut.trees", "../../output/{rand_id}_rep{rep}.pops" 
-    params: seed=seed, coords_dict=get_coords_dict
+    params: seed=seed, coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id)
     output: "../../output/rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.npz"
-    benchmark: "../../benchmarks/{rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.stats.benchmark.txt"
-    resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=10*24*60
+    benchmark: "../../benchmarks/{rand-id}_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.stats.benchmark.txt"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=5*24*60
     threads: 2
     shell:
         "python3 ../py/stats_from_ts.py {wildcards.rand_id} {wildcards.rep} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""
+
+
+rule join_windows:
+    input:  lambda wildcards: get_stats_outfiles_from_rands(tmp[tmp.sup_rand_id==wildcards.sup_rand_id].rand_id.unique(), [wildcards.win_size], [wildcards.rep])
+    output: "../../output/joined_sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.npz"
+    shell:
+        "python3 ../py/join_windows.py {output} {input}"
