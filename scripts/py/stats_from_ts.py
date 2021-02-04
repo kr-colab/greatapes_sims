@@ -24,8 +24,8 @@ coords_dict = eval(args['coords_dict'])
 out_path = "../../output/"
 
 # Loading tree sequence and list with populations
-recap_mut_path = f"{out_path}{args['rand_id']}_rep{args['rep']}.union.recap.mut.trees"
-pops_path = f"{out_path}{args['rand_id']}_rep{args['rep']}.pops"
+recap_mut_path = f"{out_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep']}.union.recap.mut.trees"
+pops_path = f"{out_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep']}.pops"
 assert os.path.exists(recap_mut_path) and os.path.exists(pops_path), f"Trees file or .pops file does not exist for {args['rand_id']}_{args['rep']}"
 recap_tsu = pyslim.load(recap_mut_path)
 with open(pops_path, "r") as f:
@@ -82,4 +82,4 @@ print(dxy.shape, windows.shape, coord_windows.shape)
 assert (dxy.shape[0]+1) == windows.shape[0] == coord_windows.shape[0]
 
 # saving to output
-np.savez(f"{out_path}rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", windows=windows[:-1], coord_windows=coord_windows[:-1], dxy=dxy, labels=labels)
+np.savez(f"{out_path}{args['rand_id']}/rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", windows=windows[:-1], coord_windows=coord_windows[:-1], dxy=dxy, labels=labels)

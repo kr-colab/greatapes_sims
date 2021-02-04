@@ -66,7 +66,7 @@ exons = pd.read_csv(ex_path,sep="\t")
 exons = exons.iloc[:,:3]
 
 # getting all output files and grouping by args["rand_id"] and args["rep"]
-tree_files = glob.glob(trees_path+"*[0-9].trees")
+tree_files = glob.glob(trees_path+args['rand_id']+"/*[0-9].trees")
 pattern = f"{args['rand_id']}_rep{args['rep']}"
 n_matches = sum(1 for file in tree_files if pattern in file)
 # making sure we got all the files
@@ -78,10 +78,10 @@ tree = build_tree_from_df(edges)
 tree = add_blen_from_meta(tree, sims_full, args["rand_id"])
 
 # performing the union
-union_path = f"{trees_path}{args['rand_id']}_rep{args['rep']}.union.trees"
-recap_mut_path = f"{trees_path}{args['rand_id']}_rep{args['rep']}.union.recap.mut.trees"
-pops_path = f"{trees_path}{args['rand_id']}_rep{args['rep']}.pops"
-tsu,  pops = union_tseqs(tree,args["rand_id"],args["rep"], trees_path)
+union_path = f"{trees_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep']}.union.trees"
+recap_mut_path = f"{trees_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep']}.union.recap.mut.trees"
+pops_path = f"{trees_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep']}.pops"
+tsu,  pops = union_tseqs(tree,args["rand_id"],args["rep"], trees_path+args['rand_id']+"/")
 tcu = tsu.dump_tables()
 del tsu
 if np.any(np.isnan(tcu.mutations.time)):
