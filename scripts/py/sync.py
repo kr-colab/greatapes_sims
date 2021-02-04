@@ -1,21 +1,14 @@
+import argparse
 
-# Script to synchronize files in metadata with outputs (removes outputs not in the meta table), but can also do the opposite.
-import pandas as pd
-import os
-import numpy as np
-import shutil
-import sys
-import re
-
-
-if (len(sys.argv) < 2):
-    print("You should pass o to sync outputs, m to sync metadata or mo to do both")
-    sys.exit()
-
-in_command = sys.argv[1]
-meta_table_path ="/home/murillor/projects/greatapes_sims/meta/sims/rand_jid.txt"
-out_path = "/home/murillor/projects/greatapes_sims/output/"
-trash_path = "/home/murillor/projects/greatapes_sims/tmp/"
+parser = argparse.ArgumentParser(description="Syncs the metadata table, the tree sequences and (optionally) the log files. By default, it removes tree sequences and log files whose random identifier is not in the metadata table. You may use the tree sequences as a basis to sync instead by toggling --sync-with-trees")
+parser.add_argument("trees_path", help="Path to tree sequences", required=True)
+parser.add_argument("meta_table_path", help="Path to metadata table", required=True)
+parser.add_argument("--logs_path", help="Path to logs")
+parser.add_argument("--trash_path", help="If provided, files are moved to this"
+                    "path instead of being deleted.")
+parser.add_argument("-t","--sync-with-trees", help="Deletes rows in the metadata table or files in the log path whose tree sequences are not in the trees_path.", action="store_true")
+parser.add_argument("-a", "--sync-nontree-files", help="Also removes files ending in .npz or .pops in the trees_path",action="store_true")
+parser.parse_args()
 
 meta = pd.read_csv(meta_table_path, sep="\t", header=None, names=["rand", "jid", "info"])
 
