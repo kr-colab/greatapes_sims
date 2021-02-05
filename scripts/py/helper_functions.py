@@ -55,6 +55,13 @@ def sub_metadata(tseqs):
     tables0.metadata = tseqs[1].tables.metadata
     tseqs[0] = pyslim.SlimTreeSequence.load_tables(tables0)
 
+def replace_metadata_gen(ts, gen):
+    tables = ts.tables
+    md = tables.metadata
+    md['SLiM']['generation'] = gen
+    tables.metadata = md
+    return pyslim.load_tables(tables)
+
 def msp_mutation_rate_map(intervals, total_rate, intervals_rate, length):
     """
     Takes a `pd.DataFrame` with three columns (?, start, end), with 0-indexed [start, end) intervals.
@@ -115,6 +122,7 @@ def add_blen_from_meta(tree, meta, rand_id):
     for node in tree.postorder_node_iter():
         print(node.taxon.label)
         subset = meta[(meta.edge==node.taxon.label) & (meta.rand_id == rand_id)]
+        print(subset)
         assert subset.shape[0] == 1
         n_gens = np.floor(subset.gens.values[0]/subset.rescf.values[0])
         node.edge_length= n_gens
