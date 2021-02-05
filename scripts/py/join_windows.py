@@ -13,8 +13,10 @@ args = vars(parser.parse_args())
 np_objs = [np.load(p) for p in args['paths']]
 
 # asserting npz objects have the same contents
+# and labels are the same
 for i in range(len(np_objs)-1):
     assert np_objs[i].keys() == np_objs[i+1].keys()
+    assert (np_objs[i]['labels'] == np_objs[i+1]['labels']).all()
 
 np_dict = npzfiles_to_dict(np_objs)
 
