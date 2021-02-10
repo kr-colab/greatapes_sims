@@ -69,7 +69,8 @@ assert dxy.shape[1] == ((len(pops)**2 - len(pops))/2) + len(pops)
 
 # getting the species labels
 labels = np.array([[pops[i],pops[j]] for i, j in indexes])
-
+print(indexes)
+print(labels)
 # slicing out the padded windows
 if start > 0:
     dxy = dxy[1:]
