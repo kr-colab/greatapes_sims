@@ -104,8 +104,8 @@ with open(pops_path, "w") as f:
     f.write(str(pops))
 
 # recapitating
-recomb_map = msprime.RecombinationMap.read_hapmap(rec_hap_path)
-recap_tsu = tsu.recapitate(recombination_map=recomb_map, Ne=args["recapN"])
+recomb_map = msprime.RateMap.read_hapmap(rec_hap_path, position_col=1, rate_col=2)
+recap_tsu = msprime.sim_ancestry(initial_state=tsu, recombination_rate=recomb_map, population_size=args["recapN"], start_time=slim_gen)
 del tsu # too much ram
 print(slim_gen, recap_tsu.max_root_time, recap_tsu.num_mutations)
 
@@ -113,8 +113,8 @@ print(slim_gen, recap_tsu.max_root_time, recap_tsu.num_mutations)
 mut_map = msp_mutation_rate_map(exons, args["total_mut_rate"], args["region_mut_rate"], int(recap_tsu.sequence_length))
 model = msprime.SLiMMutationModel(type=3)
 print("Before mutate:", recap_tsu.num_mutations)
-recap_tsu = msprime.mutate(recap_tsu, end_time=slim_gen, model=model, rate=args["total_mut_rate"], keep=True, kept_mutations_before_end_time=True)
+recap_tsu = msprime.sim_mutations(recap_tsu, end_time=slim_gen, model=model, rate=args["total_mut_rate"], keep=True, add_ancestral=True)
 print("Mutations added in the recapitation:", recap_tsu.num_mutations)
-recap_tsu = msprime.mutate(recap_tsu, start_time=slim_gen, model=model, rate=mut_map, keep=True, kept_mutations_before_end_time=True)
+recap_tsu = msprime.sim_mutations(recap_tsu, start_time=slim_gen, model=model, rate=mut_map, keep=True, add_ancestral=True)
 print("Total mutations:", recap_tsu.num_mutations)
 recap_tsu.dump(recap_mut_path)
