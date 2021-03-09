@@ -8,6 +8,7 @@ library(tidyverse)
 library(broom)
 library(patchwork)
 library(argparse)
+library(GGally)
 
 get_mrca_tmrca = function(pair) {
     
@@ -159,13 +160,13 @@ ggsave(filename=paste0(outpath,"pval-dist_",desc,"_",sup_rand_id,".pdf"), width 
 
 col10palette = c("#cb5e95", "#9bd345", "#9242c5", "#7ecf93", "#665ea9", "#cba657", "#523240", "#c3533b", "#99afc0", "#53673c")
 col9palette = c("#7dcd5b","#904cc2","#cbb354","#4b2f51","#8bc6af","#c65381","#575c3a","#c2593b","#9898c4")
-p_pi = ggplot(data = dxy[dxy$stat=="pi"], aes(x=start, y=value, group=combo)) + geom_line(aes(col=combo)) + scale_colour_manual(values=col10palette) + theme_bw(base_size=12) + labs(y="Diversity", x="Window", col="Species")
+p_pi = ggplot(data = dxy[dxy$stat=="pi"], aes(x=start, y=value, group=combo)) + geom_line(aes(col=combo)) + scale_colour_manual(values=col10palette) + theme_bw(base_size=12) + labs(y="Diversity", x="Window", col="Species") + theme(legend.margin=margin(t=0, r=0, b=0, l=-1, unit="cm"))
 p_pi
 
-p_dxy_mrca = ggplot(data = dxy[dxy$stat=="dxy"], aes(x=start, y=value, group=combo)) + geom_line(aes(col=mrca)) + scale_colour_manual(values=col9palette) + theme_bw(base_size=12) + labs(y="Divergence", x="Window", col="MRCA")
+p_dxy_mrca = ggplot(data = dxy[dxy$stat=="dxy"], aes(x=start, y=value, group=combo)) + geom_line(aes(col=mrca)) + scale_colour_manual(values=col9palette) + theme_bw(base_size=12) + labs(y="Divergence", x="Window", col="MRCA") + theme(legend.margin=margin(t=0, r=0, b=0, l=-1, unit="cm"))
 p_dxy_mrca
 
-p_dxy_tmrca = ggplot(data = dxy[dxy$stat=="dxy"], aes(x=start, y=value, group=combo)) + geom_line(aes(col=tmrca, linetype=mrca)) + scale_colour_viridis_c(direction=-1) + theme_bw(base_size=12) + labs(y="Divergence", x="Window", col="TMRCA")
+p_dxy_tmrca = ggplot(data = dxy[dxy$stat=="dxy"], aes(x=start, y=value, group=combo)) + geom_line(aes(col=tmrca, linetype=mrca)) + scale_colour_viridis_c(direction=-1) + theme_bw(base_size=12) + labs(y="Divergence", x="Window", col="TMRCA") + theme(legend.margin=margin(t=0, r=0, b=0, l=-1, unit="cm"))
 p_dxy_tmrca
 
 (p_pi / p_dxy_mrca / p_dxy_tmrca) + plot_annotation(title=spaced_desc)
@@ -174,9 +175,9 @@ cor_rec_ex = with(dxy[dxy$combo=="humans",],cor.test(mean_rec,ex_overlap, use="c
 
 coly1 = "#8a501a"
 coly2 = "#7a387c"
-p_rec_ex = ggplot(data=dxy[dxy$combo=="humans",], aes(x=start)) + geom_line(aes(y=mean_rec), col=coly1) + geom_line( aes(y=ex_overlap / 2), col=coly2) + scale_y_continuous(name = "Rec rate", sec.axis = sec_axis(~.*2, name="% Exon")) + theme_bw(base_size = 12) + theme(axis.title.y = element_text(color = coly1), axis.title.y.right = element_text(color = coly2))  + annotate("text", label=paste0("Corr = ", round(cor_rec_ex$estimate, 2)), x=1e8, y = 5.5) + xlab("Window")
+p_rec_ex = ggplot(data=dxy[dxy$combo=="humans",], aes(x=start)) + geom_line(aes(y=mean_rec), col=coly1) + geom_line( aes(y=ex_overlap / 2), col=coly2) + scale_y_continuous(name = "Rec rate", sec.axis = sec_axis(~.*2, name="% Exon")) + theme_bw(base_size = 12) + theme(axis.title.y = element_text(color = coly1), axis.title.y.right = element_text(color = coly2))  + annotate("text", label=paste0("Corr = ", round(cor_rec_ex$estimate, 2)), x=1e8, y = 5.5) + xlab("Window") + theme(legend.margin=margin(t=0, r=0, b=0, l=-1, unit="cm"))
 
-(p_pi / p_dxy_mrca / p_rec_ex) + plot_layout(heights=c(3,3,1))
+(p_pi / p_dxy_mrca / p_rec_ex) + plot_annotation(title=spaced_desc, theme=theme(title = element_text(size=8))) + plot_layout(heights=c(3,3,1))
 
 ggsave(filename=paste0(outpath,"pidxy-landscape_",desc,"_",sup_rand_id,".pdf"), width = 210, height = 297, units = "mm")
 
@@ -190,3 +191,11 @@ with(dxy[dxy$combo=="humans",],
      plot(mean_rec,ex_overlap))
 
 with(dxy[dxy$combo=="humans",],cor.test(mean_rec,ex_overlap, use="complete.obs"))$estimate
+
+
+library("colorspace")
+dxy$combo = factor(dxy$combo, levels = str_replace(mrcas$combo[order(mrcas$combo!=mrcas$mrca, mrcas$ancestral_coding)], "_", " "), ) # levels ordered by within vs between spp comparison, tmrca, and ancestral coding (tree order)
+widedxy = dcast(dxy, start + end ~ combo, value.var="value")
+cormat = cor(widedxy[,-c("start", "end")])
+ggplot(data = reshape2::melt(cormat), aes(x=Var1, y=Var2, fill=value)) + geom_tile() + scale_fill_continuous_diverging(limits=c(-1,1))+ theme_bw(base_size=10) + labs(title="Corr between Pi/Dxy",subtitle=spaced_desc, fill="Corr") + xlab("") + ylab("")  + theme(title=element_text(size=8), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+ggsave(filename=paste0(outpath,"cor-mat_",desc,"_",sup_rand_id,".pdf"), width = 210, height = 190, units = "mm")
