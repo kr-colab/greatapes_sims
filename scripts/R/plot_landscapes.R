@@ -27,9 +27,14 @@ get_mrca_tmrca = function(pair) {
     }
     
     ancs1 = get_ancestors(pair[1], pair[1], edges)
-    ancs2 = get_ancestors(pair[2], pair[2], edges)
-    mrca = intersect(ancs1, ancs2)[1]
-    tmrca = (sum(sapply(ancs1, get_time, edges)[1:(which(ancs1==mrca)-1)]) + sum(sapply(ancs2, get_time, edges)[1:(which(ancs2==mrca)-1)]))
+    if(!is.na(pair[2])) {
+        ancs2 = get_ancestors(pair[2], pair[2], edges)
+        mrca = intersect(ancs1, ancs2)[1]
+        tmrca = (sum(sapply(ancs1, get_time, edges)[1:(which(ancs1==mrca)-1)]) + sum(sapply(ancs2, get_time, edges)[1:(which(ancs2==mrca)-1)]))
+    } else {
+        mrca = pair[1]
+        tmrca = sapply(ancs1, get_time, edges)[1]
+    }
     return(c(mrca, tmrca))
 }
 
@@ -57,7 +62,7 @@ parser$add_argument('npzfilepath',  type="character")
 filepath = parser$parse_args()$npzfilepath
 
 outpath = "../../output/figs/"
-edges = read.table("../../meta/edges_meta.tsv", sep="\t", header=T, fill=T)
+edges = fread("../../meta/edges_meta.tsv", sep="\t", header=T, fill=T)
 edges$edge = str_replace(edges$edge, "_", "-")
 edges$parent = str_replace(edges$parent, "_", "-")
 sims_info = read.table("../../output/sims_info.tsv", sep="\t")
@@ -102,11 +107,17 @@ dxy[stat == "pi"]$combo = dxy[stat == "pi"]$spp1
 dxy[,c("rn", "variable") := NULL]
 dxy$start = as.integer(dxy$start)
 dxy$end = as.integer(dxy$end)
-x=sapply(unique(dxy[dxy$stat=="dxy",]$combo), function(x) get_mrca_tmrca(strsplit(x, split="_")[[1]]))
+x=sapply(unique(dxy$combo), function(x) get_mrca_tmrca(strsplit(x, split="_")[[1]]))
 mrcas =data.table(t(x), keep.rownames = TRUE)
 colnames(mrcas) = c("combo", "mrca", "tmrca")
 mrcas[, tmrca := as.numeric(tmrca)]
+setkey(mrcas, mrca)
+setkey(edges, edge)
+mrcas = mrcas[edges[,c("edge", "ancestral_coding")],]
 dxy=mrcas[dxy, on=.(combo)]
+dxy$combo = factor(dxy$combo, levels = mrcas$combo[order(mrcas$combo!=mrcas$mrca, mrcas$tmrca, mrcas$ancestral_coding)], labels=str_replace(mrcas$combo[order(mrcas$combo!=mrcas$mrca, mrcas$tmrca, mrcas$ancestral_coding)], "_", " ")) # levels ordered by within vs between spp comparison, tmrca, and ancestral coding (tree order)
+u=unique(mrcas[,c("mrca", "ancestral_coding", "tmrca")])
+dxy$mrca = factor(dxy$mrca, levels=unique(u$mrca[order(u$tmrca, u$ancestral_coding)]))
 # joining with rec rate and getting mean rate by window
 dxy = as.data.table(interval_left_join(dxy, rec, by = c("start", "end"), minoverlap=2)) # minoverlap bc end is not inclusive
 dxy[, percent:= (end.y-start.y)/(end.x-start.x)]
@@ -119,6 +130,7 @@ dxy[, percent:= (end.y-start.y)/(end.x-start.x)]
 dxy[is.na(dxy$percent)]$percent=0
 dxy=dxy[, .(ex_overlap = sum(percent)), by=setdiff(colnames(dxy), c("start.y", "chr", "end.y", "percent"))]
 setnames(dxy, c("start.x", "end.x"), c("start","end"))
+dxy[, ex_overlap := 100*ex_overlap]
 
 dxy[,.(cor = cor(value, mean_rec, use="complete.obs")), by=.(spp1, spp2)]
 dxy[,.(cor = cor(value, ex_overlap, use="complete.obs")), by=.(spp1, spp2)]
@@ -131,10 +143,10 @@ cor_ex = dxy %>%
     group_by(spp1,spp2) %>% 
     do(tidy(cor.test(.$value, .$ex_overlap)))
 
-ggplot(data=dxy, aes(y=value, x=ex_overlap, col=tmrca)) + geom_point() + facet_wrap(vars(spp1, spp2), scales="free_y") + theme_bw() + labs(y="Pi/Dxy", x="% exon overlap", col="TMRCA") + scale_colour_viridis_c(direction=-1)
-ggsave(filename=paste0(outpath,"ex-overlap-scatter_",desc,"_",sup_rand_id,".pdf"), width = 500, height = 400, units = "mm")
+ggplot(data=dxy, aes(y=value, x=ex_overlap, col=mean_rec)) + geom_point() + facet_wrap(vars(combo), scales="free_y", labeller = label_wrap_gen(width=18)) + theme_bw() + labs(y="Pi/Dxy", x="% Exon", col="Rec rate", title=spaced_desc) + scale_colour_viridis_c(direction=-1)
+ggsave(filename=paste0(outpath,"exon-scatter_",desc,"_",sup_rand_id,".pdf"), width = 500, height = 400, units = "mm")
 
-ggplot(data=dxy, aes(y=value, x=mean_rec, col=tmrca)) + geom_point() + facet_wrap(vars(spp1, spp2), scales="free_y") + theme_bw() + labs(y="Pi/Dxy", x="Rec rate", col="TMRCA") + scale_colour_viridis_c(direction=-1)
+ggplot(data=dxy, aes(y=value, x=mean_rec, col=ex_overlap)) + geom_point() + facet_wrap(vars(combo), scales="free_y", labeller = label_wrap_gen(width=18)) + theme_bw() + labs(y="Pi/Dxy", x="Rec rate", col="% Exon", title=spaced_desc) + scale_colour_viridis_c(direction=-1)
 ggsave(filename=paste0(outpath,"rec-scatter_",desc,"_",sup_rand_id,".pdf"), width = 500, height = 400, units = "mm")
 
 p_ex = ggplot(cor_ex, aes(x=p.value)) + geom_histogram() + theme_bw() + labs(y="Count", x="P-value", title="Correlation between pi/dxy and % overlap with exons")
@@ -146,19 +158,27 @@ p_rec = ggplot(cor_rec, aes(x=p.value)) + geom_histogram() + theme_bw() + labs(y
 ggsave(filename=paste0(outpath,"pval-dist_",desc,"_",sup_rand_id,".pdf"), width = 210, height = 297, units = "mm")
 
 col10palette = c("#cb5e95", "#9bd345", "#9242c5", "#7ecf93", "#665ea9", "#cba657", "#523240", "#c3533b", "#99afc0", "#53673c")
-
+col9palette = c("#7dcd5b","#904cc2","#cbb354","#4b2f51","#8bc6af","#c65381","#575c3a","#c2593b","#9898c4")
 p_pi = ggplot(data = dxy[dxy$stat=="pi"], aes(x=start, y=value, group=combo)) + geom_line(aes(col=combo)) + scale_colour_manual(values=col10palette) + theme_bw(base_size=12) + labs(y="Diversity", x="Window", col="Species")
+p_pi
 
-p_dxy_mrca = ggplot(data = dxy[dxy$stat=="dxy"], aes(x=start, y=value, group=combo)) + geom_line(aes(col=mrca)) + scale_colour_manual(values=col10palette) + theme_bw(base_size=12) + labs(y="Divergence", x="Window", col="MRCA")
+p_dxy_mrca = ggplot(data = dxy[dxy$stat=="dxy"], aes(x=start, y=value, group=combo)) + geom_line(aes(col=mrca)) + scale_colour_manual(values=col9palette) + theme_bw(base_size=12) + labs(y="Divergence", x="Window", col="MRCA")
+p_dxy_mrca
 
-
-p_dxy_tmrca = ggplot(data = dxy[dxy$stat=="dxy"], aes(x=start, y=value, group=combo)) + geom_line(aes(col=tmrca)) + scale_colour_viridis_c(direction=-1) + theme_bw(base_size=12) + labs(y="Divergence", x="Window", col="TMRCA")
-
+p_dxy_tmrca = ggplot(data = dxy[dxy$stat=="dxy"], aes(x=start, y=value, group=combo)) + geom_line(aes(col=tmrca, linetype=mrca)) + scale_colour_viridis_c(direction=-1) + theme_bw(base_size=12) + labs(y="Divergence", x="Window", col="TMRCA")
+p_dxy_tmrca
 
 (p_pi / p_dxy_mrca / p_dxy_tmrca) + plot_annotation(title=spaced_desc)
 
-ggsave(filename=paste0(outpath,"pidxy-landscape_",desc,"_",sup_rand_id,".pdf"), width = 210, height = 297, units = "mm")
+cor_rec_ex = with(dxy[dxy$combo=="humans",],cor.test(mean_rec,ex_overlap, use="complete.obs"))
 
+coly1 = "#8a501a"
+coly2 = "#7a387c"
+p_rec_ex = ggplot(data=dxy[dxy$combo=="humans",], aes(x=start)) + geom_line(aes(y=mean_rec), col=coly1) + geom_line( aes(y=ex_overlap / 2), col=coly2) + scale_y_continuous(name = "Rec rate", sec.axis = sec_axis(~.*2, name="% Exon")) + theme_bw(base_size = 12) + theme(axis.title.y = element_text(color = coly1), axis.title.y.right = element_text(color = coly2))  + annotate("text", label=paste0("Corr = ", round(cor_rec_ex$estimate, 2)), x=1e8, y = 5.5) + xlab("Window")
+
+(p_pi / p_dxy_mrca / p_rec_ex) + plot_layout(heights=c(3,3,1))
+
+ggsave(filename=paste0(outpath,"pidxy-landscape_",desc,"_",sup_rand_id,".pdf"), width = 210, height = 297, units = "mm")
 
 with(dxy[dxy$combo=="humans",],
      plot(start,mean_rec))
@@ -168,3 +188,5 @@ with(dxy[dxy$combo=="humans",],
      plot(start,mean_rec))
 with(dxy[dxy$combo=="humans",],
      plot(mean_rec,ex_overlap))
+
+with(dxy[dxy$combo=="humans",],cor.test(mean_rec,ex_overlap, use="complete.obs"))$estimate
