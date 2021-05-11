@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import tskit
-import pyslim
 import msprime
 import dendropy
 import glob
@@ -23,6 +22,7 @@ parser.add_argument('--rescf', type=int, default=1)
 parser.add_argument('--recapN', type=int, default=10000, required=False)
 parser.add_argument('--seed', type=int, default=8991, required=False)
 
+# 7TMN8S0F7TVAI2C 0 2e-08 1.2001e-08 --rescf 1 --recapN 10000 --seed 943284230
 args = vars(parser.parse_args())
 
 """
@@ -86,8 +86,9 @@ tcu = tsu.dump_tables()
 del tsu
 if np.any(np.isnan(tcu.mutations.time)):
     # TODO: remove this once using slim that adds time
+    print("SLiM tree sequence did not have mutation times.")
     tcu.compute_mutation_times()
-tsu = pyslim.load_tables(tcu)
+tsu = tcu.tree_sequence()
 del tcu
 
 # asserting within population coalescen
@@ -104,17 +105,26 @@ with open(pops_path, "w") as f:
     f.write(str(pops))
 
 # recapitating
+# doing a hacky recapitation bc pyslim hasn't been updated to use msprime1.0
+demography = msprime.Demography.from_tree_sequence(tsu)
+for pop in demography.populations:
+    pop.initial_size=args["recapN"]
 recomb_map = msprime.RateMap.read_hapmap(rec_hap_path, position_col=1, rate_col=2)
-recap_tsu = msprime.sim_ancestry(initial_state=tsu, recombination_rate=recomb_map, population_size=args["recapN"], start_time=slim_gen)
+recap_tsu = msprime.sim_ancestry(initial_state=tsu, recombination_rate=recomb_map, demography=demography)
 del tsu # too much ram
 print(slim_gen, recap_tsu.max_root_time, recap_tsu.num_mutations)
 
 # mutating
 mut_map = msp_mutation_rate_map(exons, args["total_mut_rate"], args["region_mut_rate"], int(recap_tsu.sequence_length))
-model = msprime.SLiMMutationModel(type=3)
+# figuring out the max id slim used
+max_id = -1
+for mut in ts.mutations():
+    for d in mut.derived_state.split(","):
+        max_id = max(max_id, int(d))
+model = msprime.SLiMMutationModel(type=3, next_id=max_id+1)
 print("Before mutate:", recap_tsu.num_mutations)
-recap_tsu = msprime.sim_mutations(recap_tsu, end_time=slim_gen, model=model, rate=args["total_mut_rate"], keep=True, add_ancestral=True)
+recap_tsu = msprime.sim_mutations(recap_tsu, start_time=slim_gen, model=model, rate=args["total_mut_rate"], keep=True)
 print("Mutations added in the recapitation:", recap_tsu.num_mutations)
-recap_tsu = msprime.sim_mutations(recap_tsu, start_time=slim_gen, model=model, rate=mut_map, keep=True, add_ancestral=True)
+recap_tsu = msprime.sim_mutations(recap_tsu, end_time=slim_gen, model=model, rate=mut_map, keep=True)
 print("Total mutations:", recap_tsu.num_mutations)
 recap_tsu.dump(recap_mut_path)

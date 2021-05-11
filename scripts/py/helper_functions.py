@@ -19,7 +19,7 @@ def refactor_time(ts, factor, operation=operator.iadd):
     for table in (tables.migrations, tables.mutations, tables.nodes):
         if not np.any(np.isnan(table.time)):
             table.time = operation(table.time, factor)
-    return pyslim.SlimTreeSequence.load_tables(tables)
+    return tables.tree_sequence()
 
 
 def match_nodes(tseqs, split_time):
@@ -79,7 +79,7 @@ def msp_mutation_rate_map(intervals, total_rate, intervals_rate, length):
     if not np.isclose(breaks[-1], length):
         breaks.append(length)
         rates.append(total_rate)
-    return msprime.RateMap(breaks, rates)
+    return msprime.RateMap(position=breaks, rate=rates)
 
 
 def subtree(focal, edges, taxon_namespace, nodes = None):
