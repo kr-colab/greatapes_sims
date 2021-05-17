@@ -118,13 +118,15 @@ print(slim_gen, recap_tsu.max_root_time, recap_tsu.num_mutations)
 mut_map = msp_mutation_rate_map(exons, args["total_mut_rate"], args["region_mut_rate"], int(recap_tsu.sequence_length))
 # figuring out the max id slim used
 max_id = -1
-for mut in ts.mutations():
+for mut in recap_tsu.mutations():
     for d in mut.derived_state.split(","):
         max_id = max(max_id, int(d))
 model = msprime.SLiMMutationModel(type=3, next_id=max_id+1)
 print("Before mutate:", recap_tsu.num_mutations)
+# adding mutations to recapitated part
 recap_tsu = msprime.sim_mutations(recap_tsu, start_time=slim_gen, model=model, rate=args["total_mut_rate"], keep=True)
 print("Mutations added in the recapitation:", recap_tsu.num_mutations)
+# adding mutations to the SLiM part
 recap_tsu = msprime.sim_mutations(recap_tsu, end_time=slim_gen, model=model, rate=mut_map, keep=True)
 print("Total mutations:", recap_tsu.num_mutations)
 recap_tsu.dump(recap_mut_path)
