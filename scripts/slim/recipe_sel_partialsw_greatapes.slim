@@ -7,10 +7,8 @@ initialize() {
     if (exists("seed")) {
         setSeed(asInteger(seed));
     }
-    if (exists("poscoeffdecay")) {
-        defineConstant("eps", asFloat(poscoeffdecay));
-    } else {
-        defineConstant("poscoeffdecay", 0.0);
+    if (exists("poscoefdecayeps")) {
+        defineConstant("eps", asFloat(poscoefdecayeps));
     }
     // this should be used for sims with large populations being run for a long period of time. the number of nodes in the treeseq explodes.
     if (exists("siminterval")) {
@@ -86,6 +84,14 @@ initialize() {
     initializeRecombinationRate(rates,ends);
 }
 
+1 early() {
+    // registering late events that decay pos coef every generation by eps
+    if(exists("eps")) {
+        if (eps > 0 + 1e-12) {
+            sim.registerLateEvent(3, "{m2muts = sim.mutationsOfType(m2); for (mut in m2muts) { mut.setSelectionCoeff(mut.selectionCoeff * (1-eps));};}");
+        }
+    }
+}
 
 1 late() {
     // rescaling pop size and generations
@@ -138,10 +144,6 @@ initialize() {
         saving_times = saving_times[saving_times > sim_start_gen];
         if (length(saving_times) > 0)
             sim.rescheduleScriptBlock(s2, generations=saving_times);
-    }
-    // registering late events that decay pos coef every generation by eps
-    if(exists("eps")) {
-        sim.registerLateEvent(1, "{m2muts = sim.mutationsOfType(m2); for (mut in m2muts) { mut.setSelectionCoeff(mut.selectionCoeff * (1-eps));};}");
     }
 }
 

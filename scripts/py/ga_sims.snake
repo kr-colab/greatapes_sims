@@ -67,6 +67,9 @@ edges_info = edges_meta[["edge","parent","N","gens"]].copy()
 
 ## Making a data frame that is going to hold all combinations of parameters
 params_dict = {"rescf": config['rescale_factor'], "padding":config['padding'], "delrate":delrate, "delcoef":config['del_coefs'], "posrate":posrate, "poscoef":config['pos_coefs']}
+if('pos_coef_decay_eps' in config):
+    params_dict['poscoefdecayeps'] = config['pos_coef_decay_eps']
+
 tmp=pd.DataFrame()
 for i, row in edges_info.iterrows():
     row=row.to_dict()
@@ -78,6 +81,8 @@ for i, row in edges_info.iterrows():
 #these boolean masks are here bc some parameter combs are nonsensical (e.g., no sim should have 0 rateortion of positive mutations and pos coeff non-zero)
 both_p = np.logical_and(tmp.posrate>0,tmp.poscoef > 0)
 both_p_zero = np.logical_and(tmp.posrate==0,tmp.poscoef == 0)
+if ('pos_coef_decay_eps' in config):
+    both_p_zero = np.logical_and(tmp.poscoefdecayeps > 0+1e12, both_p_zero)
 both_d = np.logical_and(tmp.delrate>0,tmp.delcoef < 0)
 both_d_zero = np.logical_and(tmp.delrate==0,tmp.delcoef == 0)
 use_param_comb = np.logical_and(np.logical_or(both_p,both_p_zero),np.logical_or(both_d, both_d_zero))
@@ -123,6 +128,8 @@ tmp.delprop = tmp.delprop.fillna(0)
 tmp.posprop = tmp.posprop.fillna(0)
 tmp["siminterval"] = np.where(tmp.N>40000,"500","")
 diff_cols = ["edge","chr","padded_start","padded_end","delrate","delcoef","posrate","poscoef","mu","rescf"]
+if ('pos_coef_decay_eps' in config):
+    diff_cols += ['poscoefdecayeps']
 tmp.duplicated(subset=diff_cols)
 tmp.drop_duplicates(subset=diff_cols,inplace=True,ignore_index=True)
 tmp.reset_index(drop=True, inplace=True)
@@ -139,17 +146,24 @@ tmp["exonfile"] = "../../meta/maps/"+tmp.rand_id+"_exons.tsv"
 tmp["recfile"] = "../../meta/maps/"+tmp.rand_id+"_recrate.tsv"
 tmp["recfilehap"] ="../../meta/maps/"+tmp.rand_id+"_recrate.hapmap"
 tmp.reset_index(drop=True, inplace=True)
-
 #finally assembling our parameter string which will be passed to the slim recipe
 # cols with params names
 pars = ["recfile", "exonfile", "siminterval", "L", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens", "rescf"]
-tmp["par_string"]=tmp[pars].apply(get_par_string, axis=1)
+if ('pos_coef_decay_eps' in config):
+    pars += ['poscoefdecayeps']
+tmp["par_string"]=tmp[pars].apply(lambda x: get_par_string(x, col_names = pars), axis=1)
 
 
 # writing tmp to file
 today = dt.datetime.today().strftime('%H%M_%d%m%Y') 
 tmp["date"] = today
 tmp["log"] = f"{config['out_path']}tmp/"+tmp.edge+"_"+tmp.rand_id+".log"
+if ('pos_coef_decay_eps' in config):
+    tmpcolnames = tmp.columns.to_list()
+    tmpcolnames.remove('poscoefdecayeps')
+    tmpcolnames += ['poscoefdecayeps']
+    tmp = tmp[tmpcolnames]
+print(tmp.head())
 par_df = tmp[diff_cols[1:]+["rand_id", "sup_rand_id"]].copy()
 if os.path.exists(f"{config['out_path']}rand_id_params.tsv"):
     ex_par_df = pd.read_csv(f"{config['out_path']}rand_id_params.tsv", header=None, names=par_df.columns, sep="\t", converters=defaultdict(lambda i: str))
