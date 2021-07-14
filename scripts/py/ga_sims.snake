@@ -33,11 +33,22 @@ def get_par_string(row, col_names=["recfile","exonfile","siminterval", "L", "mu"
     row_values = row.values.astype('str').tolist()
     return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in range(len(col_names))]))
 
+# stats files
+def get_stats_outfiles_from_rands(rand_ids, win_sizes, reps, out_path, sample_size, sup=False):
+    if not sup:
+        return [f"{out_path}{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.npz" for rand_id in rand_ids for rep in reps for wsize in win_sizes]
+    else:
+        return [f"{out_path}joined_stats/sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.npz" for rand_id in rand_ids for rep in reps for wsize in win_sizes]
+
 
 ### Setting variables/parameters
 # Now all configurable parameters/variables are provided in config.yaml
-configfile: "config.yaml"
-
+#configfile: "config.yaml"
+"""
+import yaml
+with open("partialsweeps.yaml") as f:
+    config = yaml.load(f, Loader=yaml.FullLoader)
+"""
 print(config)
 
 random.seed(config['seed'])
@@ -158,6 +169,7 @@ tmp["par_string"]=tmp[pars].apply(lambda x: get_par_string(x, col_names = pars),
 today = dt.datetime.today().strftime('%H%M_%d%m%Y') 
 tmp["date"] = today
 tmp["log"] = f"{config['out_path']}tmp/"+tmp.edge+"_"+tmp.rand_id+".log"
+# moving it to the end so that it has backward compatibility with the rest of the entries on the table
 if ('pos_coef_decay_eps' in config):
     tmpcolnames = tmp.columns.to_list()
     tmpcolnames.remove('poscoefdecayeps')
@@ -187,13 +199,6 @@ nodes_prefixes = tmp.outfile_pre
 pad=len(str(config['nreps']))
 terminal_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(config['nreps']) for pre in terminal_prefixes]
 nodes_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(config['nreps']) for pre in nodes_prefixes]
-
-# stats files
-def get_stats_outfiles_from_rands(rand_ids, win_sizes, reps, out_path, sample_size, sup=False):
-    if not sup:
-        return [f"{out_path}{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.npz" for rand_id in rand_ids for rep in reps for wsize in win_sizes]
-    else:
-        return [f"{out_path}joined_stats/sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.npz" for rand_id in rand_ids for rep in reps for wsize in win_sizes]
 
 stats_files = get_stats_outfiles_from_rands(rands, config['stat_win_sizes'], range(config['nreps']), config['out_path'], config['stat_sample_size'])
 
