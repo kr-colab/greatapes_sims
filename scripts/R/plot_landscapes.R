@@ -46,8 +46,8 @@ rid_to_desc = function(rid, rep, win_size, sep="_") {
 }
 
 
-use_condaenv("greatapes")
-use_python("/opt/anaconda3/envs/greatapes/bin/python")
+use_condaenv("apes")
+use_python("/opt/anaconda3/envs/apes/bin/python")
 
 np <- reticulate::import("numpy", convert=T)
 print("igothere")

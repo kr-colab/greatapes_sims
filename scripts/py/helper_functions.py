@@ -123,7 +123,8 @@ def add_blen_from_meta(tree, meta, rand_id):
         print(node.taxon.label)
         subset = meta[(meta.edge==node.taxon.label) & (meta.rand_id == rand_id)]
         print(subset)
-        assert subset.shape[0] == 1
+        subset.drop(columns=["date"], inplace=True)
+        assert len(subset.drop_duplicates()) == 1
         n_gens = np.floor(subset.gens.values[0]/subset.rescf.values[0])
         node.edge_length= n_gens
         #print(node.edge_length)
