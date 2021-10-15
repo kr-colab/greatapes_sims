@@ -46,7 +46,7 @@ def get_stats_outfiles_from_rands(rand_ids, win_sizes, reps, out_path, sample_si
 #configfile: "config.yaml"
 """
 import yaml
-with open("partialsweeps.yaml") as f:
+with open("../py/partialsweeps.yaml") as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
 """
 print(config)
@@ -213,7 +213,7 @@ snakemake.utils.makedirs(dirnames+[config['out_path']+"joined_stats"])
 ruleorder: win_intersect > root > branch > dedup_logs > union_recap_mut > stats > join_windows
 
 rule all:
-    input: tmp.log.to_list()+nodes_outfiles+[f"{config['out_path']}tmp/dedup_log.txt"]#+stats_files+win_joined
+    input: tmp.log.to_list()+nodes_outfiles+[f"{config['out_path']}tmp/dedup_log.txt"]+stats_files+win_joined
 
 rule win_intersect:
     params: ex=config['ex_file'], rec=config['rec_file'], bed_str=win_bed_str, chrom= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"chr"].iloc[0], start= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_start"].iloc[0], end= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_end"].iloc[0]
@@ -262,17 +262,19 @@ rule dedup_logs:
     input: nodes_outfiles, [f"{config['out_path']}tmp/{edge}_{rand_id}.log" for edge in all_nodes for rand_id in rands]
     output: touch(f"{config['out_path']}tmp/dedup_log.txt")
     run:
-        full_path = "{config['out_path']}sims_info.tsv"
+        full_path = f"{config['out_path']}sims_info.tsv"
+        header_path = f"{config['out_path']}header_sims_info.tsv"
         if os.path.exists(full_path):
-            sims_full = pd.read_csv(full_path, header=None, sep="\t", converters=defaultdict(lambda i: str))
+            h = pd.read_csv(header_path, sep="\t")
+            sims_full = pd.read_csv(full_path, header=None, sep="\t", converters=defaultdict(lambda i: str), names=h.columns.to_list())
             cols = sims_full.columns.to_list()
-            cols.remove(23)
-            cols.remove(15)
+            cols.remove("numid")
+            cols.remove("supnumid")
             sims_full.drop_duplicates(subset=cols, keep="last", inplace=True)
             sims_full.to_csv(full_path, sep="\t", header=False, index=False, mode="w")
 
 rule union_recap_mut:
-    input: lambda wildcards: (tmp[tmp.rand_id == wildcards.rand_id].outfile_pre+"_rep"+str(wildcards.rep).zfill(pad)+".trees").tolist(), [f"{config['out_path']}tmp/{{edge}}_{{rand_id}}.log" for edge in all_nodes]
+    input: lambda wildcards: (tmp[tmp.rand_id == wildcards.rand_id].outfile_pre+"_rep"+str(wildcards.rep).zfill(pad)+".trees").tolist(), [f"{config['out_path']}tmp/{edge}_{{rand_id}}.log" for edge in all_nodes]
     params: region_mut_rate = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].mu.unique()[0], rf = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].rescf.unique()[0], total_mut_rate = config['total_mu'], recapN=10000, seed=config['seed']
     output: f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.union.recap.mut.trees", f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.pops" 
     benchmark: "../../benchmarks/{rand_id}_rep{rep}.union.benchmark.txt"
