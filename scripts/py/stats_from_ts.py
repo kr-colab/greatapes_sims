@@ -16,7 +16,7 @@ parser.add_argument('rand_id', type=str)
 parser.add_argument('rep', type=str)
 parser.add_argument('win_size', type=lambda x: int(float(x)))
 parser.add_argument('sample_size', type=int)
-parser.add_argument('coords_dict', type=str, help="String of a dictionary with padded and non-padded start and ends of the chromosomic region")
+parser.add_argument('coords_dict', type=str, help="String of a dictionary with padded and non-padded start and ends of the chromosomic region. Assumes one chromosome only!")
 parser.add_argument('--seed', type=int, default=8991, required=False)
 
 args = vars(parser.parse_args())
@@ -79,8 +79,11 @@ if expected_length > stop:
     dxy = dxy[:-1]
     windows = windows [:-1]
 
+# creating array with chrom name
+chrom = np.full(shape=dxy.shape[0], fill_value=coords_dict['chr'])
 print(dxy.shape, windows.shape, coord_windows.shape)
 assert (dxy.shape[0]+1) == windows.shape[0] == coord_windows.shape[0]
 
 # saving to output
-np.savez(f"{out_path}{args['rand_id']}/rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", windows=windows[:-1], coord_windows=coord_windows[:-1], dxy=dxy, labels=labels)
+np.savez(f"{out_path}{args['rand_id']}/rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", 
+         windows=windows[:-1], coord_windows=coord_windows[:-1], chrom=chrom, dxy=dxy, labels=labels)

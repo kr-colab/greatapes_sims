@@ -21,5 +21,6 @@ for i in range(len(np_objs)-1):
 np_dict = npzfiles_to_dict(np_objs)
 
 merged_dict = {k: np.concatenate(v) if k != "labels" else v[0] for k,v in np_dict.items() }
+
 # saving to output
-np.savez(args['outpath'], windows=merged_dict["windows"], coord_windows=merged_dict["coord_windows"], dxy=merged_dict["dxy"], labels=merged_dict["labels"])
+np.savez(args['outpath'], chroms=merged_dict["chrom"], windows=merged_dict["windows"], coord_windows=merged_dict["coord_windows"], dxy=merged_dict["dxy"], labels=merged_dict["labels"])

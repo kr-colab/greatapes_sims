@@ -18,8 +18,8 @@ def win_bed_str(wildcards):
 
 def get_coords_dict(rid):
     """Creates a dict string from the tmp data.frame, getting the coords"""
-    start, end, padded_start, padded_end = tmp.loc[tmp.rand_id==rid,["start","end","padded_start","padded_end"]].iloc[0].to_list()
-    return {"start": start, "end": end, "padded_start":padded_start, "padded_end":padded_end}
+    chr, start, end, padded_start, padded_end = tmp.loc[tmp.rand_id==rid,["chr","start","end","padded_start","padded_end"]].iloc[0].to_list()
+    return {"chr": chr, "start": start, "end": end, "padded_start":padded_start, "padded_end":padded_end}
 
 def expand_grid(data_dict):
     """Create a dataframe from every combination of given values."""
