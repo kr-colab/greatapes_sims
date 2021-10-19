@@ -46,7 +46,7 @@ def get_stats_outfiles_from_rands(rand_ids, win_sizes, reps, out_path, sample_si
 #configfile: "config.yaml"
 """
 import yaml
-with open("../py/partialsweeps.yaml") as f:
+with open("../py/chr12_strongbgs.yaml") as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
 """
 print(config)
@@ -147,7 +147,7 @@ tmp.reset_index(drop=True, inplace=True)
 tmp["numid"] = tmp.groupby(diff_cols[1:]).ngroup()
 rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
 tmp["rand_id"] = rands[tmp["numid"].tolist()]
-tmp["supnumid"] = tmp.groupby(["chr", "win_len", "padding"]+diff_cols[5:]).ngroup()
+tmp["supnumid"] = tmp.groupby(["chr", "win_len", "padding"]+diff_cols[4:]).ngroup()
 sup_rands=np.array([id_generator(size=18) for i in range((tmp.supnumid.max()+1))])
 tmp["sup_rand_id"] = sup_rands[tmp["supnumid"].tolist()]
 tmp["outfile_pre"] = tmp.rand_id+"/"+tmp.edge+"_"+tmp.rand_id
