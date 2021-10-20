@@ -1,0 +1,3 @@
+[submodule "hg18"]
+	path = hg18
+	url = git@github.com:mufernando/hg18.git
