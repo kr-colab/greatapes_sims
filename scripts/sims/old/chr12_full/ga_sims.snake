@@ -1,0 +1,305 @@
+from collections import defaultdict
+import itertools
+import pandas as pd
+import numpy as np
+import string
+import random
+import datetime as dt
+import os
+
+### Helper functions
+def win_bed_str(wildcards):
+    """Creates a bed string from the tmp data.frame, getting chrom, start, end and padding"""
+    chrom, start, end = tmp.loc[tmp.rand_id==wildcards.rand_id,["chr","padded_start","padded_end"]].iloc[0].to_list()
+    #print(tmp.loc[tmp.rand_id==wildcards.rand_id,["chr","padded_start","padded_end"]].iloc[0])
+    start = int(start)
+    end = int(end)
+    return(f"{chrom}\\t{start}\\t{end}\\n")
+
+def get_coords_dict(rid):
+    """Creates a dict string from the tmp data.frame, getting the coords"""
+    start, end, padded_start, padded_end = tmp.loc[tmp.rand_id==rid,["start","end","padded_start","padded_end"]].iloc[0].to_list()
+    return {"start": start, "end": end, "padded_start":padded_start, "padded_end":padded_end}
+
+def expand_grid(data_dict):
+    """Create a dataframe from every combination of given values."""
+    rows = itertools.product(*data_dict.values())
+    return pd.DataFrame.from_records(rows, columns=data_dict.keys())
+
+def id_generator(size=15, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
+
+def get_par_string(row, col_names=["recfile","exonfile","siminterval", "L", "mu","delprop", "delcoef","posprop", "poscoef", "N", "gens", "rescf"]):
+    row_values = row.values.astype('str').tolist()
+    return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in range(len(col_names))]))
+
+# stats files
+def get_stats_outfiles_from_rands(rand_ids, win_sizes, reps, out_path, sample_size, sup=False):
+    if not sup:
+        return [f"{out_path}{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.npz" for rand_id in rand_ids for rep in reps for wsize in win_sizes]
+    else:
+        return [f"{out_path}joined_stats/sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.npz" for rand_id in rand_ids for rep in reps for wsize in win_sizes]
+
+
+### Setting variables/parameters
+# Now all configurable parameters/variables are provided in config.yaml
+#configfile: "config.yaml"
+"""
+import yaml
+with open("../py/partialsweeps.yaml") as f:
+    config = yaml.load(f, Loader=yaml.FullLoader)
+"""
+print(config)
+
+print("gothere")
+random.seed(config['seed'])
+np.random.seed(config['seed'])
+
+## Simulation parameters 
+chroms = pd.DataFrame(config['chroms'])
+# Translating proportions to rates
+delrate = [x*config['total_mu'] for x in config['del_props']]
+posrate = [x*config['total_mu'] for x in config['pos_props']]
+
+## Getting chromosome sizes from the recombination map
+rec_rates = pd.read_csv(config['rec_file'], sep="\t")
+chr_sizes = rec_rates.groupby(["#chrom"]).agg({'chromEnd': 'max'}).reset_index()
+chr_sizes.columns=["chr","length"]
+chr_sizes = chr_sizes[chr_sizes['chr']!="chrX"]
+
+## Suck up params and hash them
+edges_meta = pd.read_csv(config['edges_path'],sep="\t")
+edges_meta["edge"] = edges_meta["edge"].str.replace('_','-')
+edges_meta["parent"] = edges_meta["parent"].str.replace('_','-')
+# root
+root_edge = edges_meta[edges_meta.parent.isna()].edge[0]
+edges_meta.loc[edges_meta.edge==root_edge, "gens"] = config['burn_gen']*edges_meta.loc[edges_meta.edge==root_edge, "N"]
+edges_info = edges_meta[["edge","parent","N","gens"]].copy()
+
+## Making a data frame that is going to hold all combinations of parameters
+params_dict = {"rescf": config['rescale_factor'], "padding":config['padding'], "delrate":delrate, "delcoef":config['del_coefs'], "posrate":posrate, "poscoef":config['pos_coefs']}
+if('pos_coef_decay_eps' in config):
+    params_dict['poscoefdecayeps'] = config['pos_coef_decay_eps']
+
+tmp=pd.DataFrame()
+for i, row in edges_info.iterrows():
+    row=row.to_dict()
+    for key in row:
+        row[key] = [row[key]]
+    row.update(params_dict)
+    tmp = pd.concat([tmp,expand_grid(row)])
+#print(tmp)
+#these boolean masks are here bc some parameter combs are nonsensical (e.g., no sim should have 0 rateortion of positive mutations and pos coeff non-zero)
+both_p = np.logical_and(tmp.posrate>0,tmp.poscoef > 0)
+both_p_zero = np.logical_and(tmp.posrate==0,tmp.poscoef == 0)
+if ('pos_coef_decay_eps' in config):
+    both_p_zero = np.logical_and(tmp.poscoefdecayeps > 0+1e12, both_p_zero)
+both_d = np.logical_and(tmp.delrate>0,tmp.delcoef < 0)
+both_d_zero = np.logical_and(tmp.delrate==0,tmp.delcoef == 0)
+use_param_comb = np.logical_and(np.logical_or(both_p,both_p_zero),np.logical_or(both_d, both_d_zero))
+tmp = tmp[use_param_comb]
+print("gothere2")
+## Creating chromosome windows to be simulated
+windowed = pd.DataFrame(columns = ["chr", "start", "end", "win_id", "win_len", "clen"])
+for chrom, win_len in chroms.itertuples(index=False):
+    print(chrom,win_len)
+    clen = chr_sizes[chr_sizes.chr == chrom].length.item()
+    if win_len < 0:
+        windowed = windowed.append({"chr": chrom, "start": 0, "end": clen, "win_id": 0, "win_len": win_len, "clen": clen}, ignore_index=True)
+        continue
+    if clen < win_len:
+        windowed = windowed.append({"chr": chrom, "start": 0, "end": win_len, "win_id": 0, "win_len": win_len, "clen": clen}, ignore_index=True)
+        continue
+    counter = 0
+    for w_start in range(0, clen, win_len):
+        print(w_start)
+        w_end = w_start + win_len
+        if w_end >= clen:
+            w_end = clen
+        windowed = windowed.append({"chr": chrom, "start": w_start, "end": w_end, "win_id": counter, "win_len": win_len, "clen": clen}, ignore_index=True)
+        counter += 1
+### Sampling some windows
+if config['n_sampled_windows'] > 0:
+    windowed = windowed.groupby(["chr", "win_len"]).sample(n=config['n_sampled_windows'],random_state=0)
+## Expanding tmp and windows
+windowed_tmp = (
+      tmp.assign(key=1)
+      .merge(windowed.assign(key=1), on="key")
+      .drop("key", axis=1)
+)
+tmp = windowed_tmp.copy()
+
+## Adding padding
+tmp['padded_start'] = np.fmax(tmp['start']-tmp['padding'], np.zeros(tmp.shape[0])) 
+tmp['padded_end'] = np.fmin(tmp['end']+tmp['padding'], tmp['clen'])
+tmp['L'] = tmp['padded_end'] - tmp['padded_start']
+assert (tmp.L > 0 ).all
+## Filling out the rest of the DataFrame
+tmp["mu"] = (tmp.posrate+tmp.delrate)
+tmp['delprop'] = (tmp['delrate']/(tmp['delrate']+tmp['posrate']))*100
+tmp['posprop'] = (tmp['posrate']/(tmp['delrate']+tmp['posrate']))*100
+tmp.delprop = tmp.delprop.fillna(0)
+tmp.posprop = tmp.posprop.fillna(0)
+tmp["siminterval"] = np.where(tmp.N>40000,"500","")
+diff_cols = ["edge","chr","padded_start","padded_end","delrate","delcoef","posrate","poscoef","mu","rescf"]
+if ('pos_coef_decay_eps' in config):
+    diff_cols += ['poscoefdecayeps']
+tmp.duplicated(subset=diff_cols)
+tmp.drop_duplicates(subset=diff_cols,inplace=True,ignore_index=True)
+tmp.reset_index(drop=True, inplace=True)
+tmp["numid"] = tmp.groupby(diff_cols[1:]).ngroup()
+rands=np.array([id_generator() for i in range((tmp.numid.max()+1))])
+tmp["rand_id"] = rands[tmp["numid"].tolist()]
+tmp["supnumid"] = tmp.groupby(["chr", "win_len", "padding"]+diff_cols[5:]).ngroup()
+sup_rands=np.array([id_generator(size=18) for i in range((tmp.supnumid.max()+1))])
+tmp["sup_rand_id"] = sup_rands[tmp["supnumid"].tolist()]
+tmp["outfile_pre"] = tmp.rand_id+"/"+tmp.edge+"_"+tmp.rand_id
+assert not tmp.outfile_pre.duplicated().any(), "one of the outfile names is duplicated"
+tmp.outfile_pre=config['out_path']+tmp.outfile_pre
+tmp["exonfile"] = "../../meta/maps/"+tmp.rand_id+"_exons.tsv"
+tmp["recfile"] = "../../meta/maps/"+tmp.rand_id+"_recrate.tsv"
+tmp["recfilehap"] ="../../meta/maps/"+tmp.rand_id+"_recrate.hapmap"
+tmp.reset_index(drop=True, inplace=True)
+#finally assembling our parameter string which will be passed to the slim recipe
+# cols with params names
+pars = ["recfile", "exonfile", "siminterval", "L", "mu","delprop", "delcoef", "posprop","poscoef", "N", "gens", "rescf"]
+if ('pos_coef_decay_eps' in config):
+    pars += ['poscoefdecayeps']
+tmp["par_string"]=tmp[pars].apply(lambda x: get_par_string(x, col_names = pars), axis=1)
+
+
+# writing tmp to file
+today = dt.datetime.today().strftime('%H%M_%d%m%Y') 
+tmp["date"] = today
+tmp["log"] = f"{config['out_path']}tmp/"+tmp.edge+"_"+tmp.rand_id+".log"
+# moving it to the end so that it has backward compatibility with the rest of the entries on the table
+if ('pos_coef_decay_eps' in config):
+    tmpcolnames = tmp.columns.to_list()
+    tmpcolnames.remove('poscoefdecayeps')
+    tmpcolnames += ['poscoefdecayeps']
+    tmp = tmp[tmpcolnames]
+print(tmp.head())
+par_df = tmp[diff_cols[1:]+["rand_id", "sup_rand_id"]].copy()
+if os.path.exists(f"{config['out_path']}rand_id_params.tsv"):
+    ex_par_df = pd.read_csv(f"{config['out_path']}rand_id_params.tsv", header=None, names=par_df.columns, sep="\t", converters=defaultdict(lambda i: str))
+    par_df = pd.concat([par_df, ex_par_df], ignore_index=True)
+par_df["rescf"] = par_df["rescf"].astype(str)
+par_df = par_df.round(15)
+par_df.drop_duplicates(subset=None, keep="first", inplace=True)
+par_df.to_csv(f"{config['out_path']}rand_id_params.tsv", header=False, sep="\t", index=False, mode="w")
+tmp.iloc[0:0].to_csv(f"{config['out_path']}header_sims_info.tsv", sep="\t", header=True, index=False, mode="w")
+
+# I'm getting the terminals bc not all trees are supposed to be overlayed with mutations and recapped
+terminals=list(set(edges_meta.edge.tolist()) - set(edges_meta.parent.tolist()))
+all_nodes = list(set(edges_meta.edge.tolist()))
+terminals.sort()
+#print(tmp.edge)
+#terminals=["eastern-chimp"]
+terminal_prefixes = np.array(tmp[tmp.edge.isin(terminals)].outfile_pre)
+nodes_prefixes = tmp.outfile_pre
+
+print("gothere333")
+#dealing with replicates
+pad=len(str(config['nreps']))
+terminal_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(config['nreps']) for pre in terminal_prefixes]
+nodes_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(config['nreps']) for pre in nodes_prefixes]
+
+stats_files = get_stats_outfiles_from_rands(rands, config['stat_win_sizes'], range(config['nreps']), config['out_path'], config['stat_sample_size'])
+
+# win_joined stats files
+win_joined = get_stats_outfiles_from_rands(sup_rands, config['stat_win_sizes'], range(config['nreps']), config['out_path'], config['stat_sample_size'], sup=True)
+
+# folders to house the treesequences
+dirnames = [config['out_path']+rid for rid in rands]
+snakemake.utils.makedirs(dirnames+[config['out_path']+"joined_stats"])
+
+# this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
+ruleorder: win_intersect > root > branch > dedup_logs > union_recap_mut > stats > join_windows
+
+rule all:
+    input: tmp.log.to_list()+nodes_outfiles+[f"{config['out_path']}tmp/dedup_log.txt"]+stats_files+win_joined
+
+rule win_intersect:
+    params: ex=config['ex_file'], rec=config['rec_file'], bed_str=win_bed_str, chrom= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"chr"].iloc[0], start= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_start"].iloc[0], end= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_end"].iloc[0]
+    output: ex_f="../../meta/maps/{rand_id}_exons.tsv", rec_f="../../meta/maps/{rand_id}_recrate.tsv", rec_f_hap="../../meta/maps/{rand_id}_recrate.hapmap" 
+    shell:
+        """
+        printf '{params.bed_str}' > ../../meta/maps/'{wildcards.rand_id}'.bed
+        bedtools intersect -a {params.rec} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3,5 | awk -v OFS='\\t' -v shift='{params.start}' '{{print $1,$2-shift, $3-shift,$4}}' > {output.rec_f}
+        cat <(printf 'Chromosome\\tPosition(bp)\\tRate\\n') <(cut -f1,2,4 {output.rec_f}) <(awk -v OFS='\\t' 'END {{print $1,$3,0}}' {output.rec_f}) > {output.rec_f_hap}
+        bedtools intersect -a {params.ex} -b ../../meta/maps/'{wildcards.rand_id}'.bed | cut -f 1-3 | awk -v OFS='\\t' -v shift='{params.start}' '{{print $1,$2-shift, $3-shift,$4}}' > {output.ex_f}
+        """
+
+rule root:
+    input: "../../meta/maps/{rand_id}_exons.tsv", "../../meta/maps/{rand_id}_recrate.tsv", "../../meta/maps/{rand_id}_recrate.hapmap"
+    params: recipe = config['recipe_path'], s = lambda wildcards: tmp[(tmp.edge==root_edge) & (tmp.rand_id==wildcards.rand_id)].par_string.item()
+    output: f"{config['out_path']}{{rand_id}}/{root_edge}_{{rand_id}}_rep{{rep}}.trees"
+    benchmark: f"../../benchmarks/{root_edge}_{{rand_id}}_rep{{rep}}.slim.benchmark.txt"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 32000, runtime=5*24*60
+    threads: 2
+    shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
+
+rule log_root:
+    input: f"{config['out_path']}{{rand_id}}/{root_edge}_{{rand_id}}_rep0.trees"
+    output: touch(f"{config['out_path']}tmp/{root_edge}_{{rand_id}}.log")
+    run:
+        tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==root_edge)].to_csv(f"{config['out_path']}sims_info.tsv", sep="\t", header=False, index=False, mode="a")
+
+rule branch:
+    input: lambda wildcards: config['out_path']+wildcards.rand_id+"/"+edges_info[edges_info.edge==wildcards.edge].parent.item()+"_"+wildcards.rand_id+"_rep"+wildcards.rep+".trees"
+    params: recipe=config['recipe_path'],s=lambda wildcards: tmp[(tmp.edge==wildcards.edge) & (tmp.  rand_id==wildcards.rand_id)].par_string.item()
+    wildcard_constraints: edge=f"(?!{root_edge}).*", rep="[0-9]+"
+    output: f"{config['out_path']}{{rand_id}}/{{edge}}_{{rand_id}}_rep{{rep}}.trees"
+    benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 36000, runtime=5*24*60
+    threads: 2
+    shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
+
+rule log_branch:
+    input: f"{config['out_path']}{{rand_id}}/{{edge}}_{{rand_id}}_rep0.trees"
+    output: touch(f"{config['out_path']}tmp/{{edge}}_{{rand_id}}.log")
+    wildcard_constraints: edge=f"(?!{root_edge}).*" 
+    run:
+        tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==wildcards.edge)].to_csv(f"{config['out_path']}sims_info.tsv", sep="\t", header=False, index=False, mode="a")
+
+rule dedup_logs:
+    input: nodes_outfiles, [f"{config['out_path']}tmp/{edge}_{rand_id}.log" for edge in all_nodes for rand_id in rands]
+    output: touch(f"{config['out_path']}tmp/dedup_log.txt")
+    run:
+        full_path = f"{config['out_path']}sims_info.tsv"
+        header_path = f"{config['out_path']}header_sims_info.tsv"
+        if os.path.exists(full_path):
+            h = pd.read_csv(header_path, sep="\t")
+            sims_full = pd.read_csv(full_path, header=None, sep="\t", converters=defaultdict(lambda i: str), names=h.columns.to_list())
+            cols = sims_full.columns.to_list()
+            cols.remove("numid")
+            cols.remove("supnumid")
+            sims_full.drop_duplicates(subset=cols, keep="last", inplace=True)
+            sims_full.to_csv(full_path, sep="\t", header=False, index=False, mode="w")
+
+rule union_recap_mut:
+    input: lambda wildcards: (tmp[tmp.rand_id == wildcards.rand_id].outfile_pre+"_rep"+str(wildcards.rep).zfill(pad)+".trees").tolist(), [f"{config['out_path']}tmp/{edge}_{{rand_id}}.log" for edge in all_nodes]
+    params: region_mut_rate = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].mu.unique()[0], rf = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].rescf.unique()[0], total_mut_rate = config['total_mu'], recapN=10000, seed=config['seed']
+    output: f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.union.recap.mut.trees", f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.pops" 
+    benchmark: "../../benchmarks/{rand_id}_rep{rep}.union.benchmark.txt"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 128000, runtime=5*24*60
+    threads: 2
+    shell:
+        "python3 ../py/union_recap_mut.py {wildcards.rand_id} {wildcards.rep} {params.total_mut_rate} {params.region_mut_rate} --rescf {params.rf} --recapN {params.recapN} --seed {params.seed}"
+
+rule stats:
+    input: f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.union.recap.mut.trees", f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.pops" 
+    params: seed=config['seed'], coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id)
+    output: f"{config['out_path']}{{rand_id}}/rand-id_{{rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}.npz"
+    benchmark: "../../benchmarks/rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.stats.benchmark.txt"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=5*24*60
+    threads: 2
+    shell:
+        "python3 ../py/stats_from_ts.py {wildcards.rand_id} {wildcards.rep} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""
+
+
+rule join_windows:
+    input:  lambda wildcards: get_stats_outfiles_from_rands(tmp[tmp.sup_rand_id==wildcards.sup_rand_id].rand_id.unique(), [wildcards.win_size], [wildcards.rep], config['out_path'], config['stat_sample_size'])
+    output: f"{config['out_path']}joined_stats/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}.npz"
+    shell:
+        "python3 ../py/join_windows.py {output} {input}"
