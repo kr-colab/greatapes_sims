@@ -1,0 +1,49 @@
+# Path to VCFs
+vcf_path: "../data/processed/"
+
+# Path to Zarrs
+zarr_path: "../data/processed/"
+
+# Path where BED files with regions to be masked reside
+mask_path: "/projects/kernlab/shared/greatapes/snp_data/callability_masks/"
+
+# Path to .tsv with chromosome names and sizes
+chr_meta_path: "../hg18/chrom.sizes"
+
+# Output path
+out_path: "../output/greatapes-diversity-data/"
+
+# Output path for intermediate files
+# in relation to out_path
+out_path_tmp: "tmp/"
+
+# Output path for figures
+# in relation to out_path
+out_path_figs: "figs/"
+
+# Boolean flag that indicates wheter to use one merged mask for all species or
+# individually calculated masks per species
+merged_mask: true
+
+# Minimum proportion of accessible bases in a window
+prop_acc: 0.4
+
+# Boolan flag indicating wheter to compute 'quality' stats
+quality_stats: true
+
+# List of window sizes to compute statistics on
+win_sizes:
+- 10000
+- 50000
+- 100000
+- 500000
+- 1000000
+- 5000000
+
+# Path to R script for stat analysis
+path_Rscript: "plot_landscapes.r"
+
+# (optional) Path to metadata .tsv with at least two columns 'spp' and 'subspp'
+# used to relate subspecies data (VCFs) to callability masks of species.
+meta_path: "../data/meta/metadata_greatapes.txt"
+

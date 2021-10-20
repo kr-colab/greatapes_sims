@@ -1,0 +1,175 @@
+import allel
+import glob
+import sys
+import zarr
+import numpy as np
+import pandas as pd
+import itertools
+import argparse
+from greatapes_func import *
+import snakemake
+
+"""
+import yaml
+with open("stats.yaml") as f:
+    config = yaml.load(f, Loader=yaml.FullLoader)
+print(config)
+"""
+
+chroms = pd.read_csv(config["chr_meta_path"], sep="\t", header=None, names=["chr", "clen"])
+cnames = ["chr" + str(i) for i in range(1, 23)]
+chroms = chroms.loc[[c in cnames for c in chroms.chr]]
+
+vcfs = glob.glob(f'{config["vcf_path"]}*.vcf.gz')
+base_names = [vcf.split("/")[-1][0:-len(".vcf.gz")] for vcf in vcfs]
+
+if config["meta_path"]:
+    meta = pd.read_csv(config["meta_path"], sep="\t")
+    spp_subspp = meta[["spp", "subspp"]]
+    spp_subspp = spp_subspp[spp_subspp.subspp != 'other']
+    spp_subspp.drop_duplicates(inplace=True)
+    spp_to_sbp = {sp: spp_subspp[spp_subspp.spp == sp].subspp.to_list() for sp in spp_subspp.spp.unique()}
+else:
+    spp_to_sbp = {b:b for b in base_names}
+
+# converting to zarr
+vcf_to_zarr(vcfs, base_names, config["zarr_path"], chroms.chr)
+
+# acc masks
+print("loading accessibility mask")
+add_acc_group(config["zarr_path"], config["mask_path"], chroms, spp_to_sbp)
+
+#opening callsets
+callsets = { pop: zarr.open_group(f'{config["zarr_path"]}{pop}', mode='r') for pop in base_names }
+merged_zarr = None
+if config["merged_mask"]:
+    merged_path = f'{config["zarr_path"]}merged_accessibility'
+    if not os.path.exists(merged_path):
+        zarr.group(merged_path)
+    merged_zarr = zarr.open_group(merged_path, mode = 'r+')
+    if not all([c in merged_zarr for c in chroms.chr]):
+        dic_acc = {}
+        for pop in callsets.keys():
+            for c in chroms.chr:
+                print(pop, c)
+                if c not in dic_acc:
+                    dic_acc[c] = callsets[pop][c]['accessibility'][:]
+                else:
+                    dic_acc[c] = dic_acc[c] * callsets[pop][c]['accessibility'][:]
+        for c in dic_acc.keys():
+            merged_zarr.create_dataset(c, shape=dic_acc[c].shape, data=dic_acc[c])
+
+
+
+def calc_pidxy(c, clen, pop1, callsets, wsize, merged_zarr = None):
+    df = pd.DataFrame(columns=['value', 'stat','spp1', 'spp2', 'chr', 'start', 'end', 'n_acc_bases', 'n_snps'])
+    if merged_zarr is not None:
+        acc1 = merged_zarr[c][:]
+    else:
+        acc1 = callsets[pop1][c]["accessibility"][:]
+    gts1, pos1, alt1, ngts1, vcf_features = callset_to_masked_gt(callsets[pop1], c, acc1)
+    ac1 = gts1.count_alleles()
+    pi1, windows1, n_bases1, counts1 = allel.windowed_diversity(pos1, ac1, size=wsize, start=1, stop=clen, is_accessible=acc1)
+    tmp = pd.DataFrame()
+    tmp['value'] = pi1
+    tmp['stat'] = 'pi'
+    tmp['spp1'] = pop1
+    tmp['spp2'] = pop1
+    tmp['chr'] = c
+    tmp['start'] = windows1[:,0]
+    tmp['end'] = windows1[:,1]
+    tmp['n_acc_bases'] = n_bases1
+    tmp['n_snps'] = counts1
+    df = pd.concat([df, tmp])
+    for ft, values in vcf_features.items():
+        tmp = pd.DataFrame()
+        tmp['value'], _, counts = allel.windowed_statistic(pos1, values, np.nanmean, size=wsize, start=1, stop=clen)
+        tmp['stat'] = ft
+        tmp['chr'] = c
+        tmp['start'] = windows1[:,0]
+        tmp['end'] = windows1[:,1]
+        tmp['spp1'] = pop1
+        tmp['spp2'] = pop1
+        tmp['n_snps'] = counts
+        tmp['n_acc_bases'] = n_bases1
+        df = pd.concat([df, tmp])
+    print(f"{c}/{pop1} diversity computed.")
+    # this will ensure you don't get duplicate dxys
+    pops = list(callsets.keys())
+    pops.sort()
+    for pop2 in pops:
+        if pop2 == pop1:
+            break
+        acc2 = callsets[pop2][c]["accessibility"][:]
+        gts2, pos2, alt2, ngts2, _ = callset_to_masked_gt(callsets[pop2], c, acc2)
+        ac2 = gts2.count_alleles()
+        mpos, mac1, mac2 = merge_allel_arrays(pos1, pos2, ac1, ac2, ngts1, ngts2, alt1, alt2)
+        if merged_zarr is not None:
+            macc = merged_zarr[c][:]
+        else:
+            macc = np.logical_and(acc1,acc2)
+        dxy, windows, n_bases, counts = allel.windowed_divergence(mpos, mac1, mac2, size=wsize, start=1, stop=clen, is_accessible=macc)
+        tmp = pd.DataFrame()
+        tmp['value'] = dxy
+        tmp['stat'] = 'dxy'
+        # ensuring spp1, spp2 is sorted alphabetically
+        if pop1 > pop2:
+            tmp['spp1'] = pop2
+            tmp['spp2'] = pop1
+        else:
+            tmp['spp1'] = pop1
+            tmp['spp2'] = pop2
+        tmp['chr'] = c
+        tmp['start'] = windows[:,0]
+        tmp['end'] = windows[:,1]
+        tmp['n_acc_bases'] = n_bases
+        tmp['n_snps'] = counts
+        df = pd.concat([df, tmp])
+        print(f"{c}/{pop1} x {pop2} divergence computed.")
+    #some sanity checks
+        assert (windows==windows1).all()
+    return df
+
+chr_pop_files = [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"]]
+merged_out_files = [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}.tsv' for wsize in config["win_sizes"]]
+merged_stat_files = [f'{config["out_path"]}cor-pidxy-pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.tsv' for wsize in config["win_sizes"]]
+
+rule all:
+    input: merged_out_files + merged_stat_files
+
+rule chr_pop_pidxy:
+    output: f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{{c}}_pop_{{popn}}.tsv'
+    resources: cpus=1, runtime=120
+    run:
+        df = calc_pidxy(wildcards.c, chroms[chroms.chr == wildcards.c].clen.item(), wildcards.popn, callsets, int(wildcards.wsize), merged_zarr)
+        df.to_csv(path_or_buf=output[0], index=False, sep="\t")
+
+rule merge:
+    input: [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{popn}.tsv' for c in chroms.chr for popn in callsets.keys()]
+    output: f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}.tsv'
+    resources: cpus=1, runtime=120
+    run:
+        dfs = [pd.read_csv(f, sep="\t") for f in input]
+        full = pd.concat(dfs)
+        full.to_csv(path_or_buf=output[0], index=False, sep="\t")
+
+rule ipynb_to_r:
+    input: conv_script="ipynb_to_r.r", in_file=config["path_Rscript"][:-1]+"ipynb"
+    output: temp(config["path_Rscript"])
+    shell:
+        "Rscript {input.conv_script} {input.in_file}"
+
+rule r_analysis:
+    input: in_file=f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}.tsv', rscript=config["path_Rscript"]
+    params: outpath = config["out_path"], outpath_figs = config["out_path_figs"], prop_acc = config["prop_acc"]
+    output: f'{config["out_path"]}cor-pidxy-pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.tsv'
+    resources: cpus=2, runtime=120, mem_mb=32000
+    shell:
+        "Rscript {input.rscript} {input.in_file} {params.outpath} {params.outpath_figs} {params.prop_acc}" 
+    
+rule corrs_wsize:
+    input: [f'{config["out_path"]}cor-pidxy-pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.tsv' for wsize in config["win_sizes"]]
+    output: f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-pidxy-by-wsize_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.tsv'
+    resources: cpus=2, runtime=120, mem_mb=24000
+    run:
+        pass
