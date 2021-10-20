@@ -1,17 +1,17 @@
 # Path to VCFs
-vcf_path: "../data/processed/"
+vcf_path: "../../data/processed/"
 
 # Path to Zarrs
-zarr_path: "../data/processed/"
+zarr_path: "../../data/processed/"
 
 # Path where BED files with regions to be masked reside
 mask_path: "/projects/kernlab/shared/greatapes/snp_data/callability_masks/"
 
 # Path to .tsv with chromosome names and sizes
-chr_meta_path: "../hg18/chrom.sizes"
+chr_meta_path: "../../hg18/chrom.sizes"
 
 # Output path
-out_path: "../output/greatapes-diversity-data/"
+out_path: "../../output/greatapes-diversity-data/"
 
 # Output path for intermediate files
 # in relation to out_path
@@ -45,5 +45,5 @@ path_Rscript: "plot_landscapes.r"
 
 # (optional) Path to metadata .tsv with at least two columns 'spp' and 'subspp'
 # used to relate subspecies data (VCFs) to callability masks of species.
-meta_path: "../data/meta/metadata_greatapes.txt"
+meta_path: "../../data/meta/metadata_greatapes.txt"
 
