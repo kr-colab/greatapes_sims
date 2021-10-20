@@ -1,0 +1,2 @@
+parallel --tmpdir /home/murillor/projects/SNPs/tmp bedtools intersect -a {} -b Callable_regions/Callable_coverage/Intersect_filtered_cov5.bed > {.}_cov5.vcf ::: *vcf.gz
+for f in *.vcf.gz; do bedtools intersect -a Pongo_pygmaeus.vcf.gz -b Callable_regions/Callable_coverage/Intersect_filtered_cov5.bed -header > Pongo_pygmaeus_cov5.vcf & done
