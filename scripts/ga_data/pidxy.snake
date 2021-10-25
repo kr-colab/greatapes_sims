@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import itertools
 import argparse
-from greatapes_func import *
+from stats_helper import *
 import snakemake
 
 """
@@ -154,7 +154,7 @@ rule merge:
         full.to_csv(path_or_buf=output[0], index=False, sep="\t")
 
 rule ipynb_to_r:
-    input: conv_script="ipynb_to_r.r", in_file=config["path_Rscript"][:-1]+"ipynb"
+    input: conv_script="../R/ipynb_to_r.r", in_file=config["path_Rscript"][:-1]+"ipynb"
     output: temp(config["path_Rscript"])
     shell:
         "Rscript {input.conv_script} {input.in_file}"
