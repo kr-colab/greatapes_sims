@@ -34,11 +34,11 @@ def get_par_string(row, col_names=["recfile","exonfile","siminterval", "L", "mu"
     return(' '.join(["-d "+col_names[i]+"=\\\""+row_values[i]+"\\\"" for i in range(len(col_names))]))
 
 # stats files
-def get_stats_outfiles_from_rands(rand_ids, win_sizes, reps, out_path, sample_size, sup=False, ext="npz"):
+def get_stats_outfiles_from_rands(rand_ids, win_sizes, reps, out_path, sample_size, sup=False, ext=".npz"):
     if not sup:
-        return [f"{out_path}{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.{ext}" for rand_id in rand_ids for rep in reps for wsize in win_sizes]
+        return [f"{out_path}{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}{ext}" for rand_id in rand_ids for rep in reps for wsize in win_sizes]
     else:
-        return [f"{out_path}joined_stats/sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}.{ext}" for rand_id in rand_ids for rep in reps for wsize in win_sizes]
+        return [f"{out_path}sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}{ext}" for rand_id in rand_ids for rep in reps for wsize in win_sizes]
 
 
 ### Setting variables/parameters
@@ -204,18 +204,22 @@ nodes_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(confi
 stats_files = get_stats_outfiles_from_rands(rands, config['stat_win_sizes'], range(config['nreps']), config['out_path'], config['stat_sample_size'])
 
 # win_joined stats files
-#win_joined = get_stats_outfiles_from_rands(sup_rands, config['stat_win_sizes'], range(config['nreps']), config['out_path'], config['stat_sample_size'], sup=True)
-tsv_win_joined = get_stats_outfiles_from_rands(sup_rands, config['stat_win_sizes'], range(config['nreps']), config['out_path'], config['stat_sample_size'], sup=True, ext="tsv")
+tsv_win_joined = get_stats_outfiles_from_rands(sup_rands, config['stat_win_sizes'], range(config['nreps']), config['out_path']+"joined_stats/", config['stat_sample_size'], sup=True, ext=".tsv")
+
+final_stats_folders = get_stats_outfiles_from_rands(sup_rands, config['stat_win_sizes'], range(config['nreps']), config['out_path']+"sims_results/", config['stat_sample_size'], sup=True, ext="/")
+final_stats_files = get_stats_outfiles_from_rands(sup_rands, config['stat_win_sizes'], range(config['nreps']), "cor-pidxy-pidxy_" , config['stat_sample_size'], sup=True, ext="_prop-acc_0.4.tsv")
+final_stats = [final_stats_folders[i]+final_stats_files[i] for i in range(len(final_stats_files))]
+print(final_stats)
 
 # folders to house the treesequences
-dirnames = [config['out_path']+rid for rid in rands]
+dirnames = [config['out_path']+rid for rid in rands] + final_stats_folders + [f+"figs" for f in final_stats_folders]
 snakemake.utils.makedirs(dirnames+[config['out_path']+"joined_stats"])
 
 # this is here to make sure only treeseqs that are not inputs to the branch rule make it to be overlayed
 ruleorder: win_intersect > root > branch > dedup_logs > union_recap_mut > stats > join_windows
 
 rule all:
-    input: tmp.log.to_list()+nodes_outfiles+[f"{config['out_path']}tmp/dedup_log.txt"]+stats_files+tsv_win_joined
+    input: tmp.log.to_list()+nodes_outfiles+[f"{config['out_path']}tmp/dedup_log.txt"]+stats_files+tsv_win_joined+final_stats
 
 rule win_intersect:
     params: ex=config['ex_file'], rec=config['rec_file'], bed_str=win_bed_str, chrom= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"chr"].iloc[0], start= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_start"].iloc[0], end= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_end"].iloc[0]
@@ -311,3 +315,18 @@ rule npz_to_tsv:
     threads: 1
     shell:
         "Rscript ../R/npz_to_tsv.R {input} {output}"
+
+rule ipynb_to_r:
+    input: conv_script="../R/ipynb_to_r.r", in_file="../R/plot_landscapes.ipynb"
+    output: temp("../R/plot_landscapes.r")
+    shell:
+        "Rscript {input.conv_script} {input.in_file}"
+
+rule run_stats:
+    input: in_file=f"{config['out_path']}joined_stats/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}.tsv", rscript="../R/plot_landscapes.r"
+    params: prop_acc=0.4, outpath=f"{config['out_path']}sims_results/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}/", outpath_figs="figs/"
+    output: f"{config['out_path']}sims_results/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}/cor-pidxy-pidxy_sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}_prop-acc_0.4.tsv"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 8000, runtime=5*24*60
+    threads: 1
+    shell:
+        "Rscript {input.rscript} {input.in_file} {params.outpath} {params.outpath_figs} {params.prop_acc}" 
