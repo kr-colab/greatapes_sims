@@ -12,6 +12,7 @@ output/[A-Z]*
 output/[0-9]*
 output/backup
 meta/maps/*
+output/maps/*
 **/.ipynb_checkpoints
 **/__pycache__
 ..bfg-report
