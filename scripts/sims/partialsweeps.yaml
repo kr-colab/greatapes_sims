@@ -1,13 +1,13 @@
 seed: 38506 
 
 # Path to table containing tree to be simulated
-edges_path: "/home/murillor/projects/greatapes_sims/meta/edges_meta.tsv"
+edges_path: "../../data/meta/edges_meta.tsv"
 
 # File with recombination map
-rec_file: "/home/murillor/projects/greatapes_sims/meta/rec_rate_hg18.txt"
+rec_file: "../../hg18/decode_rec_map.tsv"
 
 # Bed file with exon annotations
-ex_file: "/home/murillor/projects/greatapes_sims/meta/merged_exons_hg18.bed"
+ex_file: "../../hg18/annotations/exon.bed.merged"
 
 # Path to slim recipe
 recipe_path: "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_partialsw_greatapes.slim"
