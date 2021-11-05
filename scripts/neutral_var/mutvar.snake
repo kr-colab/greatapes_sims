@@ -1,0 +1,41 @@
+import numpy as np
+import pandas as pd
+
+def get_stats_outfiles_from_rands(rand_ids, stat_win_sizes, reps, mut_win_sizes, sigmas, total_mu, out_path, sample_size, sup=False, ext=".npz"):
+    if not sup:
+        return [f"{out_path}{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}_mut-win-size_{mut_win_size}_sigma_{sigma}_total-mut-rate_{total_mu}{ext}" for rand_id in rand_ids for rep in reps for wsize in stat_win_sizes for mut_win_size in mut_win_sizes for sigma in sigmas]
+    else:
+        return [f"{out_path}/sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}_mut-win-size_{mut_win_size}_sigma_{sigma}_total-mut-rate_{total_mu}{ext}" for rand_id in rand_ids for rep in reps for wsize in stat_win_sizes for mut_win_size in mut_win_sizes for sigma in sigmas]
+
+
+diff_cols = ["delrate","delcoef","posrate","poscoef","mu", "poscoefdecayeps", "rescf", "win_len", "padding", "chr"]
+
+header_path = "../../output/header_sims_info.tsv" 
+sinfo_path = "../../output/sims_info.tsv"
+recaptreespath = "../../output/"
+outpath = "../../output/varmut/"
+sigmas = [0.01, 0.1]
+stat_win_sizes = [1000000]
+mut_win_sizes = [1000000]
+reps = [0]
+sample_size = 10
+total_mut_rate = 2e-8
+
+sh = pd.read_csv(header_path, sep="\t")
+cols = sh.columns.to_list()
+if cols[-1] != "poscoefdecayeps":
+    cols.append("poscoefdecayeps")
+
+sinfo = pd.read_csv(sinfo_path, sep="\t", header=None, names=cols)
+sinfo['date'] = sinfo['date'].str.split('_', expand=True).iloc[:,[1,0]].agg('_'.join, axis=1) #removing hour, I think
+sinfo = sinfo.round(15)
+sinfo.rescf = sinfo.rescf.astype(str)
+sinfo.sort_values(by=["date"], inplace=True)
+
+df = sinfo[(sinfo.win_len == -1) & (sinfo.padding==0)& (sinfo.rescf == "1") &(sinfo.posrate < 1e-16) &(sinfo.delrate < 1e-16)][diff_cols+["rand_id","sup_rand_id"]].drop_duplicates()
+
+varmut_trees = get_stats_outfiles_from_rands(df.rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath, sample_size, ext=".union.recap.mut.trees")
+stats_files = get_stats_outfiles_from_rands(df.rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath, sample_size)
+joined_tsvs = get_stats_outfiles_from_rands(df.sup_rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath, sample_size, sup=True, ext=".tsv")
+
+rule mut
