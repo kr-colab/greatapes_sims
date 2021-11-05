@@ -16,10 +16,8 @@ build_nwk = function(focal, t, parent_col="parent", child_col="edge", len_col= "
     return (treestr)
 }
 
-harmonic_ne = function(focal) {
+harmonic_ne = function(path) {
     ## THIS DOESN"T MAKE MUCH SENSE?
-    path = nodepath(tree, treetbl[treetbl$label==root,]$node,treetbl[treetbl$label==focal,]$node)
-    treetbl[treetbl$node %in% path,]$label
     times = treetbl[treetbl$node %in% path,]$branch.length
     t = sum(treetbl[treetbl$node %in% path,]$branch.length)
 
