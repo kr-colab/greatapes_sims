@@ -51,9 +51,9 @@ coords= eval(args['coords_dict'])
 # In[ ]:
 
 
-start = coords["start"] - coords["padded_start"]
-end = coords["end"]-coords["start"] + start
-clen = coords["padded_end"]-coords["padded_start"]
+start = int(coords["start"] - coords["padded_start"])
+end = int(coords["end"]-coords["start"] + start)
+clen = int(coords["padded_end"]-coords["padded_start"])
 print(end, start)
 
 
