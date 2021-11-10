@@ -7,6 +7,11 @@ def get_stats_outfiles_from_rands(rand_ids, stat_win_sizes, reps, mut_win_sizes,
     else:
         return [f"{out_path}sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}_mut-win-size_{mut_win_size}_sigma_{sigma}_total-mut-rate_{total_mu}{ext}" for rand_id in rand_ids for rep in reps for wsize in stat_win_sizes for mut_win_size in mut_win_sizes for sigma in sigmas]
 
+def get_coords_dict(rid):
+    """Creates a dict string from the tmp data.frame, getting the coords"""
+    chr, start, end, padded_start, padded_end = sinfo.loc[sinfo.rand_id==rid,["chr","start","end","padded_start","padded_end"]].iloc[0].to_list()
+    return {"chr": chr, "start": start, "end": end, "padded_start":padded_start, "padded_end":padded_end}
+
 
 diff_cols = ["delrate","delcoef","posrate","poscoef","mu", "poscoefdecayeps", "rescf", "win_len", "padding", "chr"]
 
@@ -20,6 +25,7 @@ mut_win_sizes = [1000000]
 reps = [0]
 sample_size = 10
 total_mut_rate = 2e-8
+config = {"out_path": outpath, "seed":1923}
 
 sh = pd.read_csv(header_path, sep="\t")
 cols = sh.columns.to_list()
@@ -33,20 +39,93 @@ sinfo.rescf = sinfo.rescf.astype(str)
 sinfo.sort_values(by=["date"], inplace=True)
 
 df = sinfo[(sinfo.win_len == -1) & (sinfo.padding==0)& (sinfo.rescf == "1") &(sinfo.posrate < 1e-16) &(sinfo.delrate < 1e-16)][diff_cols+["rand_id","sup_rand_id"]].drop_duplicates()
+tmp = df
 
 varmut_trees = [f"{outpath}{rand_id}/rand-id_{rand_id}_rep_{rep}_mut-win-size_{mut_win_size}_sigma_{sigma}_total-mut-rate_{total_mut_rate}.union.recap.mut.trees" for rand_id in df.rand_id.unique() for rep in reps for mut_win_size in mut_win_sizes for sigma in sigmas]
 stats_files = get_stats_outfiles_from_rands(df.rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath, sample_size)
-joined_tsvs = get_stats_outfiles_from_rands(df.sup_rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath, sample_size, sup=True, ext=".tsv")
+joined_tsvs = get_stats_outfiles_from_rands(df.sup_rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath+"joined_stats/", sample_size, sup=True, ext=".tsv")
+final_stats_folders = get_stats_outfiles_from_rands(df.sup_rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath+"sims_results/", sample_size, sup=True, ext="/")
+final_stats_files = [f"cor-pidxy-pidxy_sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}_prop-acc_0.4.tsv" for rand_id in df.sup_rand_id.unique()for rep in reps for wsize in stat_win_sizes for sigma in sigmas]
+final_stats = [final_stats_folders[i]+final_stats_files[i] for i in range(len(final_stats_files))]
+print(varmut_trees)
+print(joined_tsvs)
+print(final_stats)
+#from snakemake.utils import min_version
+#min_version("6.0")
+
+
+#module sims:
+#    snakefile: "./rules.snake"
+#    config: config
 
 rule all:
-    input: varmut_trees
+    input: varmut_trees + joined_tsvs +final_stats
 
 rule overlay_varmut:
-    input: infilepath = recaptreespath + "{rid}/{rid}_rep{rep}.union.recap.mut.trees", popfilepath = recaptreespath + "{rid}/{rid}_rep{rep}.pops" 
-    params: popoutpath = recaptreespath + "{rid}/{rid}_rep{rep}.pops"  
-    output: outpath + "{rid}/rand-id_{rid}_rep_{rep}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.union.recap.mut.trees"
+    input: infilepath = recaptreespath + "{rand_id}/{rand_id}_rep{rep}.union.recap.mut.trees", popfilepath = recaptreespath + "{rand_id}/{rand_id}_rep{rep}.pops" 
+    params: coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id), popoutfile=outpath + "{rand_id}/{rand_id}_rep{rep}.pops"
+    output: outfile=outpath + "{rand_id}/rand-id_{rand_id}_rep_{rep}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.union.recap.mut.trees"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 128000, runtime=5*24*60
+    threads: 2
     shell:
         """
-        python3 ../py/overlay_varmut.py {input.infilepath} {output} {wildcards.mwsize} {wildcards.tmrate} {wildcards.sigma}
-        cp {input.popfilepath} {params.popoutpath}
+        python3 ../py/overlay_varmut.py {input.infilepath} {output.outfile} {wildcards.mwsize} {wildcards.tmrate} {wildcards.sigma} \"{params.coords_dict}\"
+        cp {input.popfilepath} {params.popoutfile}
         """
+#use rule stats from sims as sims_stats with:
+rule stats:
+    input:
+        lambda wildcards: outpath + f"{wildcards.rand_id}/rand-id_{wildcards.rand_id}_rep_{wildcards.rep}_mut-win-size_{wildcards.mwsize}_sigma_{wildcards.sigma}_total-mut-rate_{wildcards.tmrate}.union.recap.mut.trees"
+    params: 
+        coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id)
+    benchmark:
+        "../../benchmarks/rand-id_{rand_id}_rep_{rep}_win_size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.txt"
+    output:
+        outpath + "{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.npz"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=5*24*60
+    threads: 2
+    shell:
+        "python3 ../py/stats_from_ts.py {wildcards.rand_id} {wildcards.rep} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""
+
+#use rule join_windows from sims as sims_join_windows with:
+rule join_windows:
+    input:
+        lambda wildcards: get_stats_outfiles_from_rands(tmp[tmp.sup_rand_id==wildcards.sup_rand_id].rand_id.unique(), [wildcards.win_size], [wildcards.rep], mut_win_sizes, [wildcards.sigma], total_mut_rate, config['out_path'], sample_size)
+    benchmark:
+        "../../sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.txt"
+    output:
+        outpath + "joined_stats/sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.npz"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 8000, runtime=5*24*60
+    threads: 1
+    output: f"{config['out_path']}joined_stats/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}.npz"
+    shell:
+        "python3 ../py/join_windows.py {output} {input}"
+
+
+#use rule npz_to_tsv from sims as sims_npz_to_tsv with:
+rule npz_to_tsv:
+    input:
+        outpath + "joined_stats/sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.npz"
+    output:
+        outpath + "joined_stats/sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.tsv"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 8000, runtime=5*24*60
+    threads: 1
+    shell:
+        "Rscript ../R/npz_to_tsv.R {input} {output}"
+
+rule ipynb_to_r:
+    input: conv_script="../R/ipynb_to_r.r", in_file="../R/plot_landscapes.ipynb"
+    output: temp("../R/plot_landscapes.r")
+    shell:
+        "Rscript {input.conv_script} {input.in_file}"
+
+rule run_stats:
+    input:
+        in_file = outpath + "joined_stats/sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.tsv", rscript="../R/plot_landscapes.r"
+    output:
+        outpath + "sims_results/sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}/cor-pidxy-pidxy_sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_prop-acc_0.4.tsv"
+    params: prop_acc=0.4, outpath=f"{config['out_path']}sims_results/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}/", outpath_figs="figs/"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 8000, runtime=5*24*60
+    threads: 1
+    shell:
+        "Rscript {input.rscript} {input.in_file} {params.outpath} {params.outpath_figs} {params.prop_acc}" 
