@@ -80,6 +80,7 @@ rule stats:
         coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id)
     benchmark:
         "../../benchmarks/rand-id_{rand_id}_rep_{rep}_win_size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.txt"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 128000, runtime=5*24*60
     output:
         outpath + "{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.npz"
     resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=5*24*60
