@@ -77,7 +77,7 @@ rule stats:
     input:
         lambda wildcards: outpath + f"{wildcards.rand_id}/rand-id_{wildcards.rand_id}_rep_{wildcards.rep}_mut-win-size_{wildcards.mwsize}_sigma_{wildcards.sigma}_total-mut-rate_{wildcards.tmrate}.union.recap.mut.trees"
     params: 
-        coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id), popsfilepath = lambda wildcards: outpath + f"{wildcards.rand_id}/{wildcards.rand_id}_{wildcards.rep}.pops"
+        coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id), popsfilepath = lambda wildcards: outpath + f"{wildcards.rand_id}/{wildcards.rand_id}_rep{wildcards.rep}.pops"
     benchmark:
         "../../benchmarks/rand-id_{rand_id}_rep_{rep}_win_size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.txt"
     resources: mem_mb=lambda wildcards, attempt: attempt * 96000, runtime=5*24*60
