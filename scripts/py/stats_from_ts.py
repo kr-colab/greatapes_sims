@@ -12,8 +12,9 @@ import operator
 import os
 
 parser = argparse.ArgumentParser(description='Gets stats from unioned tree sequence')
-parser.add_argument('rand_id', type=str)
-parser.add_argument('rep', type=str)
+parser.add_argument('infilepath', type=str)
+parser.add_argument('popsfilepath', type=str)
+parser.add_argument('outfilepath', type=str)
 parser.add_argument('win_size', type=lambda x: int(float(x)))
 parser.add_argument('sample_size', type=int)
 parser.add_argument('coords_dict', type=str, help="String of a dictionary with padded and non-padded start and ends of the chromosomic region. Assumes one chromosome only!")
@@ -21,16 +22,14 @@ parser.add_argument('--seed', type=int, default=8991, required=False)
 
 args = vars(parser.parse_args())
 coords_dict = eval(args['coords_dict'])
-out_path = "../../output/"
 
 # Loading tree sequence and list with populations
-recap_mut_path = f"{out_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep']}.union.recap.mut.trees"
-pops_path = f"{out_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep']}.pops"
-assert os.path.exists(recap_mut_path) and os.path.exists(pops_path), f"Trees file or .pops file does not exist for {args['rand_id']}_{args['rep']}"
-recap_tsu = pyslim.load(recap_mut_path)
-with open(pops_path, "r") as f:
+assert os.path.exists(args["infilepath"]) and os.path.exists(args["popsfilepath"]), f"Trees file or .pops file does not exist: {args['infilepath']}, {args['popsfilepath']}"
+print("about to load")
+recap_tsu = pyslim.load(args["infilepath"])
+with open(args["popsfilepath"], "r") as f:
     pops = eval(f.readline())
-
+print("finished loading")
 rng = np.random.default_rng(args['seed'])
 # getting contemporary samples
 # note the time of "contemporary" samples varies bc of differences in generation times
@@ -38,7 +37,7 @@ rng = np.random.default_rng(args['seed'])
 pop_samples = [recap_tsu.samples(population_id=i+1) for i in range(len(pops))]
 contemp_time = [np.min(recap_tsu.tables.nodes.time[samples]) for samples in pop_samples]
 contemp_samples = [rng.choice(pop_samples[pid][recap_tsu.tables.nodes.time[pop_samples[pid]] == contemp_time[pid]], args["sample_size"], replace=False) for pid in range(len(pop_samples))]
-
+print("samples selected")
 
 # windowing
 start = coords_dict['start']-coords_dict['padded_start']
@@ -85,5 +84,4 @@ print(dxy.shape, windows.shape, coord_windows.shape)
 assert (dxy.shape[0]+1) == windows.shape[0] == coord_windows.shape[0]
 
 # saving to output
-np.savez(f"{out_path}{args['rand_id']}/rand-id_{args['rand_id']}_rep_{args['rep']}_win-size_{args['win_size']}_sample-size_{args['sample_size']}.npz", 
-         windows=windows[:-1], coord_windows=coord_windows[:-1], chrom=chrom, dxy=dxy, labels=labels)
+np.savez(args["outfilepath"], windows=windows[:-1], coord_windows=coord_windows[:-1], chrom=chrom, dxy=dxy, labels=labels)

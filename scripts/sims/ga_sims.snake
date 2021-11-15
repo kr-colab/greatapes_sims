@@ -290,14 +290,14 @@ rule union_recap_mut:
         "python3 ../py/union_recap_mut.py {wildcards.rand_id} {wildcards.rep} {params.total_mut_rate} {params.region_mut_rate} --rescf {params.rf} --recapN {params.recapN} --seed {params.seed}"
 
 rule stats:
-    input: f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.union.recap.mut.trees", f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.pops" 
+    input: infilepath=f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.union.recap.mut.trees", popsfilepath=f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.pops" 
     params: seed=config['seed'], coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id)
     output: f"{config['out_path']}{{rand_id}}/rand-id_{{rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}.npz"
     benchmark: "../../benchmarks/rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.stats.benchmark.txt"
     resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=5*24*60
     threads: 2
     shell:
-        "python3 ../py/stats_from_ts.py {wildcards.rand_id} {wildcards.rep} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""
+        "python3 ../py/stats_from_ts.py {input.infilepath} {input.popsfilepath} {output} {wildcards.rep} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""
 
 
 rule join_windows:

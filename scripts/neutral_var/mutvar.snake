@@ -77,16 +77,15 @@ rule stats:
     input:
         lambda wildcards: outpath + f"{wildcards.rand_id}/rand-id_{wildcards.rand_id}_rep_{wildcards.rep}_mut-win-size_{wildcards.mwsize}_sigma_{wildcards.sigma}_total-mut-rate_{wildcards.tmrate}.union.recap.mut.trees"
     params: 
-        coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id)
+        coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id), popsfilepath = lambda wildcards: outpath + f"{wildcards.rand_id}/{wildcards.rand_id}_{wildcards.rep}.pops"
     benchmark:
         "../../benchmarks/rand-id_{rand_id}_rep_{rep}_win_size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.txt"
-    resources: mem_mb=lambda wildcards, attempt: attempt * 128000, runtime=5*24*60
+    resources: mem_mb=lambda wildcards, attempt: attempt * 96000, runtime=5*24*60
     output:
         outpath + "{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.npz"
-    resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=5*24*60
     threads: 2
     shell:
-        "python3 ../py/stats_from_ts.py {wildcards.rand_id} {wildcards.rep} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""
+        "python3 ../py/stats_from_ts.py {input} {params.popsfilepath} {output} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""
 
 #use rule join_windows from sims as sims_join_windows with:
 rule join_windows:
