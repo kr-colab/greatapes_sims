@@ -170,3 +170,30 @@ def union_tseqs(tree, rand_id, rep, trees_path):
         in_tseqs[node.taxon.label] = (tseqs[0].union(tseqs[1], node_mapping), pops)
     assert len(in_tseqs) == 1
     return in_tseqs[list(in_tseqs.keys())[0]]
+
+def sample_from_ts(ts, sample_size=None, contemporary=True, rng=None):
+    if rng is None:
+        rng = np.random.default_rng()
+    # Returns a dicionary with `sample_size` samples for each population.
+    # If `contemporary` is True, only samples whose times are close to
+    # the minimum times in the sample's population are kept.
+    # Useful if tree has multiple pops and is not ultrametric.
+    min_times = {pop.id: np.inf for pop in ts.populations()}
+    if contemporary:
+        for node in ts.nodes():
+            if node.flags != tskit.NODE_IS_SAMPLE:
+                continue
+            if node.time < min_times[node.population]:
+                min_times[node.population] = node.time
+    samples = {}
+    for node in ts.nodes():
+        if node.flags != tskit.NODE_IS_SAMPLE:
+            continue
+        if node.population not in samples:
+            samples[node.population] = []
+        if np.isclose(node.time, min_times[node.population]) or (not contemporary):
+            samples[node.population].append(node.id)
+    if sample_size is not None:
+        for pop, sample in samples.items():
+            samples[pop] = rng.choice(sample, sample_size, replace=False)
+    return samples
