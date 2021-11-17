@@ -124,7 +124,7 @@ rule run_stats:
         in_file = outpath + "joined_stats/sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.tsv", rscript="../R/plot_landscapes.r"
     output:
         outpath + "sims_results/sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}/cor-pidxy-pidxy_sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_prop-acc_0.4.tsv"
-    params: prop_acc=0.4, outpath=f"{config['out_path']}sims_results/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}/", outpath_figs="figs/"
+    params: prop_acc=0.4, outpath=f"{config['out_path']}sims_results/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}/", outpath_figs="figs/"
     resources: mem_mb=lambda wildcards, attempt: attempt * 8000, runtime=5*24*60
     threads: 1
     shell:

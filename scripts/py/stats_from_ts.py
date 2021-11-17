@@ -8,6 +8,7 @@ import functools
 import argparse
 import operator
 import os
+from helper_functions import *
 
 parser = argparse.ArgumentParser(description='Gets stats from unioned tree sequence')
 parser.add_argument('infilepath', type=str)
@@ -32,8 +33,8 @@ rng = np.random.default_rng(args['seed'])
 # getting contemporary samples
 # note the time of "contemporary" samples varies bc of differences in generation times
 # TODO: sample individuals not nodes
-contemp_times = [np.min(recap_tsu.tables.nodes.time[recap_tsu.samples(population_id=i+1)]) for i in range(len(pops))]
-contemp_samples = [rng.choice(recap_tsu.samples(population_id=i+1, time=contemp_times[i]), args["sample_size"], replace=False) for i in range(len(pops))]
+samples = sample_from_ts(recap_tsu, sample_size=args["sample_size"], rng=rng)
+sample_sets = list(samples.values())
 print("samples selected", flush=True)
 
 # windowing
@@ -59,7 +60,7 @@ print(windows, coord_windows, flush=True)
 indexes = [(x, y) for x in range(len(pops)) for y in range(len(pops)) if x >= y]
 
 #calculating dxy and diversity
-dxy = recap_tsu.divergence(sample_sets=contemp_samples, mode="site", windows=windows, indexes=indexes)
+dxy = recap_tsu.divergence(sample_sets=sample_sets, mode="site", windows=windows, indexes=indexes)
 # half matrix + diagonal
 assert dxy.shape[1] == ((len(pops)**2 - len(pops))/2) + len(pops)
 

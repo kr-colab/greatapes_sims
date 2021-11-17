@@ -20,7 +20,17 @@ harmonic_ne = function(path) {
     ## THIS DOESN"T MAKE MUCH SENSE?
     times = treetbl[treetbl$node %in% path,]$branch.length
     t = sum(treetbl[treetbl$node %in% path,]$branch.length)
+    ns = treetbl[treetbl$node %in% path,]$N
+    inv_ne = sum((times/t)*(1/ns))
+    return(1/inv_ne)
+}
 
+focal_harm_ne = function(focal) {
+    ## THIS DOESN"T MAKE MUCH SENSE?
+    path = nodepath(tree, treetbl[treetbl$label==root,]$node,treetbl[treetbl$label==focal,]$node)
+    treetbl[treetbl$node %in% path,]$label
+    times = treetbl[treetbl$node %in% path,]$branch.length
+    t = sum(treetbl[treetbl$node %in% path,]$branch.length)
     ns = treetbl[treetbl$node %in% path,]$N
     inv_ne = sum((times/t)*(1/ns))
     return(1/inv_ne)
@@ -61,6 +71,7 @@ get_mrow = function(row, cols, tree, treetbl) {
 meta_from_fname = function(fname, prop=NULL) {
     ga_data_str = "greatapes-diversity-data"
     is_ga_data = grepl(ga_data_str,inpath, fixed=TRUE)
+    is_sigma = grepl("sigma", inpath, fixed=TRUE)
     if (is_ga_data) {
         strp = '.+win-size_(\\d+)_merged-mask_(\\w+)'
         if (is.null(prop)){
@@ -78,17 +89,36 @@ meta_from_fname = function(fname, prop=NULL) {
         desc = str_replace_all(desc, "=", "_")
         meta = list("win_size" = as.integer(win_size), "merged_mask" = merged_mask, "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data)
     } else {
-        strp = '.+sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)\\.tsv'
-        matches = str_match(fname, strp)
-        suprand = matches[2]
-        rep = matches[3]
-        win_size = matches[4]
-        sample_size = matches[5]
-        spaced_desc = paste0("sup-rand-id=", suprand, " rep=", rep, "\nwin-size=", win_size, " sample-size=", sample_size, " prop-acc=", prop)
-        desc = str_replace_all(spaced_desc, " ", "_")
-        desc = str_replace_all(desc, "=", "_")
-        desc = str_replace_all(desc, "\n", "_")
-        meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data)
+        if (is_sigma) {
+            print("entrei")
+            strp = '.+sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)_mut-win-size_(\\d+)_sigma_(.+)_total-mut-rate_(.+)\\.tsv'
+            matches = str_match(fname, strp)
+            suprand = matches[2]
+            rep = matches[3]
+            win_size = matches[4]
+            sample_size = matches[5]
+            mut_win_size = matches[6]
+            sigma = matches[7]
+            tmr = matches[8]
+            spaced_desc = paste0("sup-rand-id=", suprand, " rep=", rep, "\nwin-size=", win_size, " mut-win-size=",mut_win_size, " sigma=", sigma, " total_mut=", tmr, "\nsample-size=", sample_size, " prop-acc=", prop)
+            desc = str_replace_all(spaced_desc, " ", "_")
+            desc = str_replace_all(desc, "=", "_")
+            desc = str_replace_all(desc, "\n", "_")
+            meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data)
+        } else {
+            strp = '.+sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)\\.tsv'
+            matches = str_match(fname, strp)
+            suprand = matches[2]
+            rep = matches[3]
+            win_size = matches[4]
+            sample_size = matches[5]
+            spaced_desc = paste0("sup-rand-id=", suprand, " rep=", rep, "\nwin-size=", win_size, " sample-size=", sample_size, " prop-acc=", prop)
+            desc = str_replace_all(spaced_desc, " ", "_")
+            desc = str_replace_all(desc, "=", "_")
+            desc = str_replace_all(desc, "\n", "_")
+            meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data)
+        }
+
     }
     return (meta)
 }
