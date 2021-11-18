@@ -19,7 +19,7 @@ header_path = "../../output/header_sims_info.tsv"
 sinfo_path = "../../output/sims_info.tsv"
 recaptreespath = "../../output/"
 outpath = "../../output/varmut/"
-sigmas = [0.01, 0.1]
+sigmas = [f'{s:.3f}' for s in np.round(np.geomspace(0.01, 1, 10),3)] 
 stat_win_sizes = [1000000]
 mut_win_sizes = [1000000]
 reps = [0]
@@ -45,7 +45,7 @@ varmut_trees = [f"{outpath}{rand_id}/rand-id_{rand_id}_rep_{rep}_mut-win-size_{m
 stats_files = get_stats_outfiles_from_rands(df.rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath, sample_size)
 joined_tsvs = get_stats_outfiles_from_rands(df.sup_rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath+"joined_stats/", sample_size, sup=True, ext=".tsv")
 final_stats_folders = get_stats_outfiles_from_rands(df.sup_rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath+"sims_results/", sample_size, sup=True, ext="/")
-final_stats_files = [f"cor-pidxy-pidxy_sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}_prop-acc_0.4.tsv" for rand_id in df.sup_rand_id.unique()for rep in reps for wsize in stat_win_sizes for sigma in sigmas]
+final_stats_files = [f"figs/cor-pidxy-dT_sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}_prop-acc_0.4.pdf" for rand_id in df.sup_rand_id.unique()for rep in reps for wsize in stat_win_sizes for sigma in sigmas]
 final_stats = [final_stats_folders[i]+final_stats_files[i] for i in range(len(final_stats_files))]
 print(varmut_trees)
 print(joined_tsvs)
@@ -123,8 +123,8 @@ rule run_stats:
     input:
         in_file = outpath + "joined_stats/sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.tsv", rscript="../R/plot_landscapes.r"
     output:
-        outpath + "sims_results/sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}/cor-pidxy-pidxy_sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_prop-acc_0.4.tsv"
-    params: prop_acc=0.4, outpath=f"{config['out_path']}sims_results/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}/", outpath_figs="figs/"
+        outpath + "sims_results/sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}/figs/cor-pidxy-dT_sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_prop-acc_0.4.pdf"
+    params: prop_acc=0.4, outpath=f"{config['out_path']}sims_results/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}_mut-win-size_{{mwsize}}_sigma_{{sigma}}_total-mut-rate_{{tmrate}}/", outpath_figs="figs/"
     resources: mem_mb=lambda wildcards, attempt: attempt * 8000, runtime=5*24*60
     threads: 1
     shell:
