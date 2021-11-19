@@ -100,7 +100,7 @@ meta_from_fname = function(fname, prop=NULL) {
             mut_win_size = matches[6]
             sigma = matches[7]
             tmr = matches[8]
-            spaced_desc = paste0("sup-rand-id=", suprand, " rep=", rep, "\nwin-size=", win_size, " mut-win-size=",mut_win_size, " sigma=", sigma, " total_mut=", tmr, "\nsample-size=", sample_size, " prop-acc=", prop)
+            spaced_desc = paste0("sup-rand-id=", suprand, " rep=", rep, "\nwin-size=", win_size, " mut-win-size=",mut_win_size, " sigma=", sigma, " total-mut=", tmr, "\nsample-size=", sample_size, " prop-acc=", prop)
             desc = str_replace_all(spaced_desc, " ", "_")
             desc = str_replace_all(desc, "=", "_")
             desc = str_replace_all(desc, "\n", "_")
