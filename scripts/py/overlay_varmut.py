@@ -88,7 +88,7 @@ rng = np.random.default_rng(args["seed"])
 
 coefs = rng.normal(0,args["sigma"], len(breakpoints)-1)
 rates = (1+coefs)*args["total_mut_rate"]
-
+rates[rates<0.0] = 0.0
 
 # In[ ]:
 
