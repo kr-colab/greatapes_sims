@@ -132,7 +132,7 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, merged_zarr = None):
 
 chr_pop_files = [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"]]
 merged_out_files = [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}.tsv' for wsize in config["win_sizes"]]
-merged_stat_files = [f'{config["out_path"]}cor-pidxy-pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.tsv' for wsize in config["win_sizes"]]
+merged_stat_files = [f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"]]
 
 rule all:
     input: merged_out_files + merged_stat_files
@@ -162,7 +162,7 @@ rule ipynb_to_r:
 rule r_analysis:
     input: in_file=f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}.tsv', rscript=config["path_Rscript"]
     params: outpath = config["out_path"], outpath_figs = config["out_path_figs"], prop_acc = config["prop_acc"]
-    output: f'{config["out_path"]}cor-pidxy-pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.tsv'
+    output: f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.pdf'
     resources: cpus=2, runtime=120, mem_mb=32000
     shell:
         "Rscript {input.rscript} {input.in_file} {params.outpath} {params.outpath_figs} {params.prop_acc}" 
