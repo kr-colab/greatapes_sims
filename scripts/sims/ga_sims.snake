@@ -202,6 +202,9 @@ terminal_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(co
 nodes_outfiles = [f"{pre}_rep{str(rep).zfill(pad)}.trees" for rep in range(config['nreps']) for pre in nodes_prefixes]
 
 stats_files = get_stats_outfiles_from_rands(rands, config['stat_win_sizes'], range(config['nreps']), config['out_path'], config['stat_sample_size'])
+cov_files = [f"{config['out_path']}{rid}/rand-id_{rid}_rep_{rep}_sample-size_{config['stat_sample_size']}_covs.tsv" for rep in range(config['nreps']) for rid in rands]
+print(cov_files)
+joined_cov_files = [f"{config['out_path']}joined_stats/sup-rand-id_{srid}_rep_{rep}_sample-size_{config['stat_sample_size']}_joinedcovs.tsv" for srid in sup_rands for rep in range(config['nreps'])]
 
 # win_joined stats files
 tsv_win_joined = get_stats_outfiles_from_rands(sup_rands, config['stat_win_sizes'], range(config['nreps']), config['out_path']+"joined_stats/", config['stat_sample_size'], sup=True, ext=".tsv")
@@ -219,7 +222,7 @@ snakemake.utils.makedirs(dirnames+[config['out_path']+"joined_stats"])
 ruleorder: win_intersect > root > branch > dedup_logs > union_recap_mut > stats > join_windows
 
 rule all:
-    input: tmp.log.to_list()+nodes_outfiles+[f"{config['out_path']}tmp/dedup_log.txt"]+stats_files+tsv_win_joined+final_stats
+    input: tmp.log.to_list()+nodes_outfiles+[f"{config['out_path']}tmp/dedup_log.txt"]+stats_files+tsv_win_joined+final_stats + cov_files + joined_cov_files
 
 rule win_intersect:
     params: ex=config['ex_file'], rec=config['rec_file'], bed_str=win_bed_str, chrom= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"chr"].iloc[0], start= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_start"].iloc[0], end= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_end"].iloc[0]
@@ -299,6 +302,34 @@ rule stats:
     shell:
         "python3 ../py/stats_from_ts.py {input.infilepath} {input.popsfilepath} {output} {wildcards.rep} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""
 
+rule cov_ipynb_to_py:
+    input: "../py/cov_stats.ipynb" 
+    output: temp("../py/cov_stats.py")
+    shell:
+        "jupyter nbconvert --to script {input}"
+
+rule covs:
+    input: infilepath=f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.union.recap.mut.trees", popsfilepath=f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.pops", script="../py/cov_stats.py"
+    params: seed=config['seed'], coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id)
+    output: f"{config['out_path']}{{rand_id}}/rand-id_{{rand_id}}_rep_{{rep}}_sample-size_{{sample_size}}_covs.tsv"
+    benchmark: "../../benchmarks/rand-id_{rand_id}_rep_{rep}_sample-size_{sample_size}.covs.benchmark.txt"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=5*24*60
+    threads: 2
+    shell:
+        "python3 ../py/cov_stats.py {input.infilepath} {input.popsfilepath} {output} {wildcards.sample_size} \"{params.coords_dict}\""
+
+# TODO: weighted sum by span of windows / total length
+rule merge_win_covs:
+    input: lambda wildcards: [f"{config['out_path']}{rid}/rand-id_{rid}_rep_{wildcards.rep}_sample-size_{wildcards.sample_size}_covs.tsv" for rid in tmp[tmp.sup_rand_id==wildcards.sup_rand_id].rand_id.unique()]
+    output: f"{config['out_path']}joined_stats/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_sample-size_{{sample_size}}_joinedcovs.tsv"
+    resources: mem_mb=lambda wildcards, attempt: attempt * 8000, runtime=5*24*60
+    threads: 1
+    run:
+        concat_covs = pd.DataFrame()
+        for fname in input:
+            df = pd.read_csv(fname, sep="\t")
+            concat_covs = pd.concat([concat_covs,df], axis=0)
+        concat_covs.to_csv(output[0], sep="\t", index=False)
 
 rule join_windows:
     input:  lambda wildcards: get_stats_outfiles_from_rands(tmp[tmp.sup_rand_id==wildcards.sup_rand_id].rand_id.unique(), [wildcards.win_size], [wildcards.rep], config['out_path'], config['stat_sample_size'])
