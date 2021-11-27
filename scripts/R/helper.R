@@ -68,16 +68,16 @@ get_mrow = function(row, cols, tree, treetbl) {
     return(mrow)
 }
 
-meta_from_fname = function(fname, prop=NULL) {
+meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv") {
     ga_data_str = "greatapes-diversity-data"
-    is_ga_data = grepl(ga_data_str,inpath, fixed=TRUE)
-    is_sigma = grepl("sigma", inpath, fixed=TRUE)
+    is_ga_data = grepl(ga_data_str,fname, fixed=TRUE)
+    is_sigma = grepl("sigma", fname, fixed=TRUE)
     if (is_ga_data) {
-        strp = '.+win-size_(\\d+)_merged-mask_(\\w+)'
+        strp = '.*win-size_(\\d+)_merged-mask_(\\w+)'
         if (is.null(prop)){
             strp = paste0(strp, '_prop-acc_(.+)')
         }
-        strp = paste0(strp, "\\.tsv")
+        strp = paste0(strp, suffix)
         matches = str_match(fname, strp)
         win_size = matches[2]
         merged_mask = matches[3]
@@ -91,7 +91,7 @@ meta_from_fname = function(fname, prop=NULL) {
     } else {
         if (is_sigma) {
             print("entrei")
-            strp = '.+sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)_mut-win-size_(\\d+)_sigma_(.+)_total-mut-rate_(.+)\\.tsv'
+            strp = paste0('.*sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)_mut-win-size_(\\d+)_sigma_(.+)_total-mut-rate_(.+)', suffix)
             matches = str_match(fname, strp)
             suprand = matches[2]
             rep = matches[3]
@@ -106,7 +106,7 @@ meta_from_fname = function(fname, prop=NULL) {
             desc = str_replace_all(desc, "\n", "_")
             meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data)
         } else {
-            strp = '.+sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)\\.tsv'
+            strp = paste0('.*sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)', suffix)
             matches = str_match(fname, strp)
             suprand = matches[2]
             rep = matches[3]
