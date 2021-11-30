@@ -1,1 +1,1 @@
-edge	parent	N	gens	rescf	padding	delrate	delcoef	posrate	poscoef	chr	start	end	win_id	win_len	clen	padded_start	padded_end	L	mu	delprop	posprop	siminterval	numid	rand_id	supnumid	sup_rand_id	outfile_pre	exonfile	recfile	recfilehap	par_string	date	log	poscoefdecayeps
+edge	parent	N	gens	rescf	padding	delrate	delcoef	posrate	poscoef	chr	start	end	win_id	win_len	clen	padded_start	padded_end	L	mu	delprop	posprop	siminterval	numid	rand_id	supnumid	sup_rand_id	outfile_pre	exonfile	recfile	recfilehap	par_string	date	log
