@@ -13,6 +13,8 @@ output/[0-9]*
 output/backup
 meta/maps/*
 output/maps/*
+!output/sims_info.tsv
+!output/header_sims_info.tsv
 **/.ipynb_checkpoints
 **/__pycache__
 ..bfg-report
