@@ -40,11 +40,11 @@ args = {
 """
 
 ## metadata paths
-rec_hap_path = f"../../meta/maps/{args['rand_id']}_recrate.hapmap"
-ex_path = f"../../meta/maps/{args['rand_id']}_exons.tsv"
+rec_hap_path = f"../../output/maps/{args['rand_id']}_recrate.hapmap"
+ex_path = f"../../output/maps/{args['rand_id']}_exons.tsv"
 
 
-edges_path = "../../meta/edges_meta.tsv"
+edges_path = "../../data/meta/edges_meta.tsv"
 sims_full_path = "../../output/sims_info.tsv"
 sims_header_path = "../../output/header_sims_info.tsv"
 trees_path = "../../output/"

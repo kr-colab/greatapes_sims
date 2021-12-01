@@ -46,7 +46,7 @@ def get_stats_outfiles_from_rands(rand_ids, win_sizes, reps, out_path, sample_si
 #configfile: "config.yaml"
 """
 import yaml
-with open("../py/chr12_strongbgs.yaml") as f:
+with open("chr12_full.yaml") as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
 """
 print(config)
@@ -246,9 +246,11 @@ rule root:
 
 rule log_root:
     input: f"{config['out_path']}{{rand_id}}/{root_edge}_{{rand_id}}_rep0.trees"
-    output: touch(f"{config['out_path']}tmp/{root_edge}_{{rand_id}}.log")
+    output: f"{config['out_path']}tmp/{root_edge}_{{rand_id}}.log"
     run:
-        tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==root_edge)].to_csv(f"{config['out_path']}sims_info.tsv", sep="\t", header=False, index=False, mode="a")
+        df = tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==root_edge)]
+        df.to_csv(f"{config['out_path']}sims_info.tsv", sep="\t", header=False, index=False, mode="a")
+        df.to_csv(output[0], sep="\t", header=False, index=False, mode="a")
 
 rule branch:
     input: lambda wildcards: config['out_path']+wildcards.rand_id+"/"+edges_info[edges_info.edge==wildcards.edge].parent.item()+"_"+wildcards.rand_id+"_rep"+wildcards.rep+".trees"
@@ -262,10 +264,12 @@ rule branch:
 
 rule log_branch:
     input: f"{config['out_path']}{{rand_id}}/{{edge}}_{{rand_id}}_rep0.trees"
-    output: touch(f"{config['out_path']}tmp/{{edge}}_{{rand_id}}.log")
+    output: f"{config['out_path']}tmp/{{edge}}_{{rand_id}}.log"
     wildcard_constraints: edge=f"(?!{root_edge}).*" 
     run:
-        tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==wildcards.edge)].to_csv(f"{config['out_path']}sims_info.tsv", sep="\t", header=False, index=False, mode="a")
+        df = tmp[(tmp.rand_id==wildcards.rand_id) & (tmp.edge==wildcards.edge)]
+        df.to_csv(f"{config['out_path']}sims_info.tsv", sep="\t", header=False, index=False, mode="a")
+        df.to_csv(output[0], sep="\t", header=False, index=False, mode="a")
 
 rule dedup_logs:
     input: nodes_outfiles, [f"{config['out_path']}tmp/{edge}_{rand_id}.log" for edge in all_nodes for rand_id in rands]
@@ -275,12 +279,18 @@ rule dedup_logs:
         header_path = f"{config['out_path']}header_sims_info.tsv"
         if os.path.exists(full_path):
             h = pd.read_csv(header_path, sep="\t")
-            sims_full = pd.read_csv(full_path, header=None, sep="\t", converters=defaultdict(lambda i: str), names=h.columns.to_list())
-            cols = sims_full.columns.to_list()
+            sims_full = pd.read_csv(full_path, sep="\t", header=None)
+            cols = h.columns.to_list()
+            if len(cols) == 34:
+                cols.append("poscoefdecayeps")
+            sims_full.columns = cols
             cols.remove("numid")
             cols.remove("supnumid")
+            cols.remove("date")
             sims_full.drop_duplicates(subset=cols, keep="last", inplace=True)
             sims_full.to_csv(full_path, sep="\t", header=False, index=False, mode="w")
+            new_h = pd.DataFrame(columns=sims_full.columns)
+            new_h.to_csv(header_path, sep="\t", header=True, index=False, mode="w")
 
 rule union_recap_mut:
     input: lambda wildcards: (tmp[tmp.rand_id == wildcards.rand_id].outfile_pre+"_rep"+str(wildcards.rep).zfill(pad)+".trees").tolist(), [f"{config['out_path']}tmp/{edge}_{{rand_id}}.log" for edge in all_nodes]
