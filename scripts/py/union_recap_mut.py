@@ -15,7 +15,6 @@ import pyslim
 import operator
 import gc
 
-@profile
 def refactor_time(ts, factor, operation=operator.iadd):
     '''
     This function returns a tskit.TreeSequence in which the times columns in
@@ -55,22 +54,6 @@ def match_nodes(ts1, ts2, split_time):
     node_mapping[both] = sorted_ids0[matches[both]]
     return node_mapping
 
-def sub_metadata(tseqs):
-    """
-    Work around current bug in `tskit.union`: subbing top-level metadata
-    so they match.
-    """
-    tables0 = tseqs[0].tables
-    tables0.metadata = tseqs[1].tables.metadata
-    tseqs[0] = pyslim.SlimTreeSequence.load_tables(tables0)
-
-def replace_metadata_gen(ts, gen):
-    tables = ts.tables
-    md = tables.metadata
-    md['SLiM']['generation'] = gen
-    tables.metadata = md
-    return pyslim.load_tables(tables)
-
 def msp_mutation_rate_map(intervals, total_rate, intervals_rate, length):
     """
     Takes a `pd.DataFrame` with three columns (?, start, end), with 0-indexed [start, end) intervals.
@@ -109,7 +92,6 @@ def subtree(focal, edges, taxon_namespace, nodes = None):
             nodes = subtree(row.edge, edges, taxon_namespace, nodes)
     return nodes
 
-@profile
 def build_tree_from_df(edges):
     """
     Returns a `dendropy.Tree` from a `pandas.DataFrame` with edge-parent
@@ -122,7 +104,6 @@ def build_tree_from_df(edges):
     tree.ladderize(ascending=False)
     return(tree)
 
-@profile
 def add_blen_from_meta(tree, meta, rand_id):
     """
     `meta` is a `pandas.DataFrame` with columns `edge`, `rand_id`, `gens` and
