@@ -279,11 +279,10 @@ rule dedup_logs:
         header_path = f"{config['out_path']}header_sims_info.tsv"
         if os.path.exists(full_path):
             h = pd.read_csv(header_path, sep="\t")
-            sims_full = pd.read_csv(full_path, sep="\t", header=None)
             cols = h.columns.to_list()
             if len(cols) == 34:
                 cols.append("poscoefdecayeps")
-            sims_full.columns = cols
+            sims_full = pd.read_csv(full_path, sep="\t", header=None, names=cols)
             cols.remove("numid")
             cols.remove("supnumid")
             cols.remove("date")
