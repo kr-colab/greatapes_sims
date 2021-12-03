@@ -5,6 +5,7 @@ import dendropy
 import numpy as np
 import pandas as pd
 import operator
+import gc
 
 def refactor_time(ts, factor, operation=operator.iadd):
     '''
@@ -21,8 +22,7 @@ def refactor_time(ts, factor, operation=operator.iadd):
             table.time = operation(table.time, factor)
     return tables.tree_sequence()
 
-
-def match_nodes(tseqs, split_time):
+def match_nodes(ts1, ts2, split_time):
     """
     Given two SLiM tree sequences, returns a dictionary relating
     the id in ts2 (key) to id in ts1 (item) for  node IDs in the
@@ -31,10 +31,14 @@ def match_nodes(tseqs, split_time):
     considered. Note the only check of equivalency is the slim_id
     of the nodes.
     """
-    node_mapping = np.full(tseqs[1].num_nodes, tskit.NULL)
-    sids0 = np.array([n.metadata["slim_id"] for n in tseqs[0].nodes()])
-    sids1 = np.array([n.metadata["slim_id"] for n in tseqs[1].nodes()])
-    alive_before_split1 = tseqs[1].tables.nodes.time >= split_time
+    node_mapping = np.full(ts2.num_nodes, tskit.NULL)
+    sids0 = np.array([n.metadata["slim_id"] for n in ts1.nodes()])
+    sids1 = np.full(ts2.num_nodes, -1)
+    alive_before_split1 = np.full(ts2.num_nodes, False)
+    for i, node in enumerate(ts2.nodes()):
+        sids1[i] = node.metadata["slim_id"]
+        alive_before_split1[i] = (node.time >= split_time)
+    assert np.all(sids1!=-1)
     sorted_ids0 = np.argsort(sids0)
     matches = np.searchsorted(
         sids0,
@@ -109,6 +113,7 @@ def build_tree_from_df(edges):
     taxon_namespace = dendropy.TaxonNamespace(edges.edge.values.tolist())
     nodes = subtree(root_name, edges, taxon_namespace)
     tree = dendropy.Tree(seed_node = nodes[root_name], taxon_namespace=taxon_namespace)
+    tree.ladderize(ascending=False)
     return(tree)
 
 def add_blen_from_meta(tree, meta, rand_id):
@@ -133,7 +138,6 @@ def add_blen_from_meta(tree, meta, rand_id):
     tree.calc_node_ages(ultrametricity_precision=False, is_force_max_age=True)
     return tree
 
-
 def union_tseqs(tree, rand_id, rep, trees_path):
     """
     Given a `dendropy.tree` object with annotated `edge_lengths`, a `rand_id`
@@ -141,7 +145,11 @@ def union_tseqs(tree, rand_id, rep, trees_path):
     `tskit.TableCollection.union` of all leaves in the phylogenetic tree.
     """
     in_tseqs = {}
+    tsu = None
     for node in tree.postorder_node_iter(filter_fn = lambda node: node.is_internal()):
+        del tsu
+        collected = gc.collect()
+        print("Garbage collector: collected", "%d objects." % collected)
         assert len(node.child_nodes()) == 2, "Polytomies are not supported."
         tseqs = []
         pops = []
@@ -152,24 +160,35 @@ def union_tseqs(tree, rand_id, rep, trees_path):
             history_len.append(child.root_distance+child.age)
             if child.is_leaf():
                 pops.append(child.taxon.label)
-                tseqs.append(pyslim.load(trees_path+child.taxon.label+"_"+rand_id+"_rep"+rep+".trees"))
+                print(trees_path+child.taxon.label+"_"+rand_id+"_rep"+rep+".trees")
+                tpath = trees_path+child.taxon.label+"_"+rand_id+"_rep"+rep+".trees"
+                collected = gc.collect()
+                print("Before pyslim.load garbage collector: collected", "%d objects." % collected)
+                tseqs.append(pyslim.load(tpath))
+                print(gc.get_stats())
+                collected = gc.collect()
             else:
                 tseq, p = in_tseqs.pop(child.taxon.label)
                 tseqs.append(tseq)
                 pops += p
                 del tseq
+        assert len(tseqs) == 2
         #check if times need be shifted
+        print("Garbage collector: collected", "%d objects." % collected)
         print(f"Before shift\ttime 0: {tseqs[0].max_root_time}\ttime 1: {tseqs[1].max_root_time}")
         if history_len[1] > history_len[0]:
             tseqs[0] = refactor_time(tseqs[0], history_len[1]-history_len[0])
         elif history_len[0] > history_len[1]:
             tseqs[1] = refactor_time(tseqs[1], history_len[0]-history_len[1])
         print(f"After shift\ttime 0: {tseqs[0].max_root_time}\ttime 1: {tseqs[1].max_root_time}")
-        node_mapping = match_nodes(tseqs, node.age)
-        sub_metadata(tseqs)
-        in_tseqs[node.taxon.label] = (tseqs[0].union(tseqs[1], node_mapping), pops)
+        print("Matching nodes")
+        node_mapping = match_nodes(tseqs[0], tseqs[1], node.age)
+        print("Union\'ing pops: ", pops)
+        tsu = tseqs[0].union(tseqs[1], node_mapping)
+        in_tseqs[node.taxon.label] = tsu, pops
     assert len(in_tseqs) == 1
-    return in_tseqs[list(in_tseqs.keys())[0]]
+    assert node.taxon.label == list(in_tseqs.keys())[0]
+    return (tsu, pops)
 
 def sample_from_ts(ts, sample_size=None, contemporary=True, rng=None):
     if rng is None:
