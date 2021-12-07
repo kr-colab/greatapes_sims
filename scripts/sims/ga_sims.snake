@@ -154,9 +154,9 @@ tmp["sup_rand_id"] = sup_rands[tmp["supnumid"].tolist()]
 tmp["outfile_pre"] = tmp.rand_id+"/"+tmp.edge+"_"+tmp.rand_id
 assert not tmp.outfile_pre.duplicated().any(), "one of the outfile names is duplicated"
 tmp.outfile_pre=config['out_path']+tmp.outfile_pre
-tmp["exonfile"] = "../../output/maps/"+tmp.rand_id+"_exons.tsv"
-tmp["recfile"] = "../../output/maps/"+tmp.rand_id+"_recrate.tsv"
-tmp["recfilehap"] ="../../output/maps/"+tmp.rand_id+"_recrate.hapmap"
+tmp["exonfile"] = config['out_path']+"maps/"+tmp.rand_id+"_exons.tsv"
+tmp["recfile"] = config['out_path']+"maps/"+tmp.rand_id+"_recrate.tsv"
+tmp["recfilehap"] =config['out_path']+"maps/"+tmp.rand_id+"_recrate.hapmap"
 tmp.reset_index(drop=True, inplace=True)
 #finally assembling our parameter string which will be passed to the slim recipe
 # cols with params names
@@ -225,18 +225,18 @@ rule all:
     input: tmp.log.to_list()+nodes_outfiles+[f"{config['out_path']}tmp/dedup_log.txt"]+stats_files+tsv_win_joined+final_stats + cov_files + joined_cov_files
 
 rule win_intersect:
-    params: ex=config['ex_file'], rec=config['rec_file'], bed_str=win_bed_str, chrom= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"chr"].iloc[0], start= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_start"].iloc[0], end= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_end"].iloc[0]
-    output: ex_f="../../output/maps/{rand_id}_exons.tsv", rec_f="../../output/maps/{rand_id}_recrate.tsv", rec_f_hap="../../output/maps/{rand_id}_recrate.hapmap" 
+    params: ex=config['ex_file'], rec=config['rec_file'], bed_str=win_bed_str, chrom= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"chr"].iloc[0], start= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_start"].iloc[0], end= lambda wildcards: tmp.loc[tmp.rand_id==wildcards.rand_id,"padded_end"].iloc[0], tmpbed = lambda wildcards: f"{config['out_path']}maps/{wildcards.rand_id}.bed"
+    output: ex_f=config['out_path']+"maps/{rand_id}_exons.tsv", rec_f=config['out_path']+"maps/{rand_id}_recrate.tsv", rec_f_hap=config['out_path']+"maps/{rand_id}_recrate.hapmap" 
     shell:
         """
-        printf '{params.bed_str}' > ../../output/maps/'{wildcards.rand_id}'.bed
-        bedtools intersect -a {params.rec} -b ../../output/maps/'{wildcards.rand_id}'.bed | cut -f 1-3,5 | awk -v OFS='\\t' -v shift='{params.start}' '{{print $1,$2-shift, $3-shift,$4}}' > {output.rec_f}
+        printf '{params.bed_str}' > '{params.tmpbed}'
+        bedtools intersect -a {params.rec} -b '{params.tmpbed}' | cut -f 1-3,5 | awk -v OFS='\\t' -v shift='{params.start}' '{{print $1,$2-shift, $3-shift,$4}}' > {output.rec_f}
         cat <(printf 'Chromosome\\tPosition(bp)\\tRate\\n') <(cut -f1,2,4 {output.rec_f}) <(awk -v OFS='\\t' 'END {{print $1,$3,0}}' {output.rec_f}) > {output.rec_f_hap}
-        bedtools intersect -a {params.ex} -b ../../output/maps/'{wildcards.rand_id}'.bed | cut -f 1-3 | awk -v OFS='\\t' -v shift='{params.start}' '{{print $1,$2-shift, $3-shift,$4}}' > {output.ex_f}
+        bedtools intersect -a {params.ex} -b '{params.tmpbed}' | cut -f 1-3 | awk -v OFS='\\t' -v shift='{params.start}' '{{print $1,$2-shift, $3-shift,$4}}' > {output.ex_f}
         """
 
 rule root:
-    input: "../../output/maps/{rand_id}_exons.tsv", "../../output/maps/{rand_id}_recrate.tsv", "../../output/maps/{rand_id}_recrate.hapmap"
+    input: config['out_path']+"maps/{rand_id}_exons.tsv", config['out_path']+"maps/{rand_id}_recrate.tsv", config['out_path']+"maps/{rand_id}_recrate.hapmap"
     params: recipe = config['recipe_path'], s = lambda wildcards: tmp[(tmp.edge==root_edge) & (tmp.rand_id==wildcards.rand_id)].par_string.item()
     output: f"{config['out_path']}{{rand_id}}/{root_edge}_{{rand_id}}_rep{{rep}}.trees"
     benchmark: f"../../benchmarks/{root_edge}_{{rand_id}}_rep{{rep}}.slim.benchmark.txt"
@@ -293,39 +293,39 @@ rule dedup_logs:
 
 rule union_recap_mut:
     input: lambda wildcards: (tmp[tmp.rand_id == wildcards.rand_id].outfile_pre+"_rep"+str(wildcards.rep).zfill(pad)+".trees").tolist(), [f"{config['out_path']}tmp/{edge}_{{rand_id}}.log" for edge in all_nodes]
-    params: region_mut_rate = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].mu.unique()[0], rf = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].rescf.unique()[0], total_mut_rate = config['total_mu'], recapN=10000, seed=config['seed']
+    params: region_mut_rate = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].mu.unique()[0], rf = lambda wildcards: tmp[tmp.rand_id==wildcards.rand_id].rescf.unique()[0], total_mut_rate = config['total_mu'], recapN=10000, seed=config['seed'], script = config.get("union_recap_mut", "../py/union_recap_mut.py")
     output: f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.union.recap.mut.trees", f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.pops" 
     benchmark: "../../benchmarks/{rand_id}_rep{rep}.union.benchmark.txt"
-    resources: mem_mb=lambda wildcards, attempt: attempt * 128000, runtime=5*24*60
+    resources: mem_mb=lambda wildcards, attempt: attempt * 136000, runtime=5*24*60
     threads: 2
     shell:
-        "python3 ../py/union_recap_mut.py {wildcards.rand_id} {wildcards.rep} {params.total_mut_rate} {params.region_mut_rate} --rescf {params.rf} --recapN {params.recapN} --seed {params.seed}"
+        "python3 {params.script} {wildcards.rand_id} {wildcards.rep} {params.total_mut_rate} {params.region_mut_rate} --rescf {params.rf} --recapN {params.recapN} --seed {params.seed}"
 
 rule stats:
     input: infilepath=f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.union.recap.mut.trees", popsfilepath=f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.pops" 
-    params: seed=config['seed'], coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id)
+    params: seed=config['seed'], coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id), script = config.get("stats", "../py/stats_from_ts.py")
     output: f"{config['out_path']}{{rand_id}}/rand-id_{{rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}.npz"
     benchmark: "../../benchmarks/rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}.stats.benchmark.txt"
     resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=5*24*60
     threads: 2
     shell:
-        "python3 ../py/stats_from_ts.py {input.infilepath} {input.popsfilepath} {output} {wildcards.rep} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""
+        "python3 {params.script} {input.infilepath} {input.popsfilepath} {output} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""
 
 rule cov_ipynb_to_py:
-    input: "../py/cov_stats.ipynb" 
-    output: temp("../py/cov_stats.py")
+    input: config.get("cov_statsnb", "../py/cov_stats.ipynb")
+    output: config.get("cov_statspy", "../py/cov_stats.py")
     shell:
         "jupyter nbconvert --to script {input}"
 
 rule covs:
-    input: infilepath=f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.union.recap.mut.trees", popsfilepath=f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.pops", script="../py/cov_stats.py"
+    input: infilepath=f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.union.recap.mut.trees", popsfilepath=f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.pops", script = config.get("cov_statspy", "../py/cov_stats.py")
     params: seed=config['seed'], coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id)
     output: f"{config['out_path']}{{rand_id}}/rand-id_{{rand_id}}_rep_{{rep}}_sample-size_{{sample_size}}_covs.tsv"
     benchmark: "../../benchmarks/rand-id_{rand_id}_rep_{rep}_sample-size_{sample_size}.covs.benchmark.txt"
-    resources: mem_mb=lambda wildcards, attempt: attempt * 48000, runtime=5*24*60
+    resources: mem_mb=lambda wildcards, attempt: attempt * 128000, runtime=5*24*60
     threads: 2
     shell:
-        "python3 ../py/cov_stats.py {input.infilepath} {input.popsfilepath} {output} {wildcards.sample_size} \"{params.coords_dict}\""
+        "python3 {input.script} {input.infilepath} {input.popsfilepath} {output} {wildcards.sample_size} \"{params.coords_dict}\""
 
 # TODO: weighted sum by span of windows / total length
 rule merge_win_covs:
@@ -342,28 +342,30 @@ rule merge_win_covs:
 
 rule join_windows:
     input:  lambda wildcards: get_stats_outfiles_from_rands(tmp[tmp.sup_rand_id==wildcards.sup_rand_id].rand_id.unique(), [wildcards.win_size], [wildcards.rep], config['out_path'], config['stat_sample_size'])
-    resources: mem_mb=lambda wildcards, attempt: attempt * 8000, runtime=5*24*60
+    params: script = config.get("join_windows", "../py/join_windows.py")
+    resources: mem_mb=lambda wildcards, attempt: attempt * 16000, runtime=5*24*60
     threads: 1
     output: f"{config['out_path']}joined_stats/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}.npz"
     shell:
-        "python3 ../py/join_windows.py {output} {input}"
+        "python3 {params.script} {output} {input}"
 
 rule npz_to_tsv:
     input: f"{config['out_path']}joined_stats/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}.npz"
+    params: script = config.get("npztotsv", "../R/npz_to_tsv.R")
     output: f"{config['out_path']}joined_stats/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}.tsv"
     resources: mem_mb=lambda wildcards, attempt: attempt * 8000, runtime=5*24*60
     threads: 1
     shell:
-        "Rscript ../R/npz_to_tsv.R {input} {output}"
+        "Rscript {params.script} {input} {output}"
 
 rule ipynb_to_r:
-    input: conv_script="../R/ipynb_to_r.r", in_file="../R/plot_landscapes.ipynb"
-    output: temp("../R/plot_landscapes.r")
+    input: conv_script=config.get("ipynbtor", "../R/ipynb_to_r.r"), in_file=config.get("plot_landscapes_ipynb", "../R/plot_landscapes.ipynb")
+    output: "../R/plot_landscapes.r"
     shell:
         "Rscript {input.conv_script} {input.in_file}"
 
 rule run_stats:
-    input: in_file=f"{config['out_path']}joined_stats/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}.tsv", rscript="../R/plot_landscapes.r"
+    input: in_file=f"{config['out_path']}joined_stats/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}.tsv", rscript=config.get("plot_landscapes_r","../R/plot_landscapes.r")
     params: prop_acc=0.4, outpath=f"{config['out_path']}sims_results/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}/", outpath_figs="figs/"
     output: f"{config['out_path']}sims_results/sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}/cor-pidxy-pidxy_sup-rand-id_{{sup_rand_id}}_rep_{{rep}}_win-size_{{win_size}}_sample-size_{{sample_size}}_prop-acc_0.4.tsv"
     resources: mem_mb=lambda wildcards, attempt: attempt * 8000, runtime=5*24*60
