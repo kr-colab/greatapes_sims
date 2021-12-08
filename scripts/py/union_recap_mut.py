@@ -63,7 +63,10 @@ edges["parent"] = edges["parent"].str.replace('_','-')
 #generations per branch in the phylo treee
 sims_full= pd.read_csv(sims_full_path,sep="\t", header=None)
 header = pd.read_csv(sims_header_path,sep="\t")
-sims_full.columns = header.columns
+cols = header.columns.to_list()
+if cols[-1] != "poscoefdecayeps":
+    cols.append("poscoefdecayeps")
+sims_full.columns = cols
 # exons file
 exons = pd.read_csv(ex_path,sep="\t")
 # removing extraneous columns?
@@ -87,6 +90,7 @@ recap_mut_path = f"{trees_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep
 pops_path = f"{trees_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep']}.pops"
 print("Loading union-ing tree sequences!")
 tsu,  pops = union_tseqs(tree,args["rand_id"],args["rep"], trees_path+args['rand_id']+"/")
+print(pops, flush=True)
 tcu = tsu.dump_tables()
 del tsu
 if np.any(np.isnan(tcu.mutations.time)):

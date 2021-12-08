@@ -22,6 +22,14 @@ def refactor_time(ts, factor, operation=operator.iadd):
             table.time = operation(table.time, factor)
     return tables.tree_sequence()
 
+def get_slim_id(node, mschema=pyslim.slim_metadata_schemas["node"]):
+    sid = None
+    try:
+        sid = node.metadata['slim_id']
+    except:
+        sid = mschema.decode_row(node.metadata)['slim_id']
+    return sid
+
 def match_nodes(ts1, ts2, split_time):
     """
     Given two SLiM tree sequences, returns a dictionary relating
@@ -32,11 +40,11 @@ def match_nodes(ts1, ts2, split_time):
     of the nodes.
     """
     node_mapping = np.full(ts2.num_nodes, tskit.NULL)
-    sids0 = np.array([n.metadata["slim_id"] for n in ts1.nodes()])
+    sids0 = np.array([get_slim_id(node) for node in ts1.nodes()])
     sids1 = np.full(ts2.num_nodes, -1)
     alive_before_split1 = np.full(ts2.num_nodes, False)
     for i, node in enumerate(ts2.nodes()):
-        sids1[i] = node.metadata["slim_id"]
+        sids1[i] = get_slim_id(node)
         alive_before_split1[i] = (node.time >= split_time)
     assert np.all(sids1!=-1)
     sorted_ids0 = np.argsort(sids0)
@@ -49,22 +57,6 @@ def match_nodes(ts1, ts2, split_time):
     both = np.logical_and(alive_before_split1, is_1in0)
     node_mapping[both] = sorted_ids0[matches[both]]
     return node_mapping
-
-def sub_metadata(tseqs):
-    """
-    Work around current bug in `tskit.union`: subbing top-level metadata
-    so they match.
-    """
-    tables0 = tseqs[0].tables
-    tables0.metadata = tseqs[1].tables.metadata
-    tseqs[0] = pyslim.SlimTreeSequence.load_tables(tables0)
-
-def replace_metadata_gen(ts, gen):
-    tables = ts.tables
-    md = tables.metadata
-    md['SLiM']['generation'] = gen
-    tables.metadata = md
-    return pyslim.load_tables(tables)
 
 def msp_mutation_rate_map(intervals, total_rate, intervals_rate, length):
     """
@@ -113,7 +105,6 @@ def build_tree_from_df(edges):
     taxon_namespace = dendropy.TaxonNamespace(edges.edge.values.tolist())
     nodes = subtree(root_name, edges, taxon_namespace)
     tree = dendropy.Tree(seed_node = nodes[root_name], taxon_namespace=taxon_namespace)
-    tree.ladderize(ascending=False)
     return(tree)
 
 def add_blen_from_meta(tree, meta, rand_id):
@@ -162,9 +153,7 @@ def union_tseqs(tree, rand_id, rep, trees_path):
                 pops.append(child.taxon.label)
                 print(trees_path+child.taxon.label+"_"+rand_id+"_rep"+rep+".trees")
                 tpath = trees_path+child.taxon.label+"_"+rand_id+"_rep"+rep+".trees"
-                collected = gc.collect()
-                print("Before pyslim.load garbage collector: collected", "%d objects." % collected)
-                tseqs.append(pyslim.load(tpath))
+                tseqs.append(tskit.load(tpath))
                 print(gc.get_stats())
                 collected = gc.collect()
             else:
@@ -174,7 +163,6 @@ def union_tseqs(tree, rand_id, rep, trees_path):
                 del tseq
         assert len(tseqs) == 2
         #check if times need be shifted
-        print("Garbage collector: collected", "%d objects." % collected)
         print(f"Before shift\ttime 0: {tseqs[0].max_root_time}\ttime 1: {tseqs[1].max_root_time}")
         if history_len[1] > history_len[0]:
             tseqs[0] = refactor_time(tseqs[0], history_len[1]-history_len[0])
