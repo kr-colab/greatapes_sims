@@ -23,6 +23,8 @@ def refactor_time(ts, factor, operation=operator.iadd):
     return tables.tree_sequence()
 
 def get_slim_id(node, mschema=pyslim.slim_metadata_schemas["node"]):
+    # gets slim id for a node
+    # if treeseq didnt have metadata schemas, uses pyslim
     sid = None
     try:
         sid = node.metadata['slim_id']
