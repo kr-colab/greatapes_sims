@@ -142,21 +142,21 @@ def union_tseqs(tree, rand_id, rep, trees_path):
     for node in tree.postorder_node_iter(filter_fn = lambda node: node.is_internal()):
         del tsu
         collected = gc.collect()
-        print("Garbage collector: collected", "%d objects." % collected)
+        print("Garbage collector: collected", "%d objects." % collected, flush=True)
         assert len(node.child_nodes()) == 2, "Polytomies are not supported."
         tseqs = []
         pops = []
         history_len = []
-        print(node.taxon.label, "\t", node.age, sep="")
+        print(node.taxon.label, "\t", node.age, sep="", flush=True)
         for child in node.child_nodes():
-            print("\t"+child.taxon.label+"\t"+str(child.root_distance)+"\t"+str(child.age))
+            print("\t"+child.taxon.label+"\t"+str(child.root_distance)+"\t"+str(child.age), flush=True)
             history_len.append(child.root_distance+child.age)
             if child.is_leaf():
                 pops.append(child.taxon.label)
-                print(trees_path+child.taxon.label+"_"+rand_id+"_rep"+rep+".trees")
+                print(trees_path+child.taxon.label+"_"+rand_id+"_rep"+rep+".trees", flush=True)
                 tpath = trees_path+child.taxon.label+"_"+rand_id+"_rep"+rep+".trees"
                 tseqs.append(tskit.load(tpath))
-                print(gc.get_stats())
+                print(gc.get_stats(), flush=True)
                 collected = gc.collect()
             else:
                 tseq, p = in_tseqs.pop(child.taxon.label)
@@ -165,15 +165,15 @@ def union_tseqs(tree, rand_id, rep, trees_path):
                 del tseq
         assert len(tseqs) == 2
         #check if times need be shifted
-        print(f"Before shift\ttime 0: {tseqs[0].max_root_time}\ttime 1: {tseqs[1].max_root_time}")
+        print(f"Before shift\ttime 0: {tseqs[0].max_root_time}\ttime 1: {tseqs[1].max_root_time}", flush=True)
         if history_len[1] > history_len[0]:
             tseqs[0] = refactor_time(tseqs[0], history_len[1]-history_len[0])
         elif history_len[0] > history_len[1]:
             tseqs[1] = refactor_time(tseqs[1], history_len[0]-history_len[1])
-        print(f"After shift\ttime 0: {tseqs[0].max_root_time}\ttime 1: {tseqs[1].max_root_time}")
-        print("Matching nodes")
+        print(f"After shift\ttime 0: {tseqs[0].max_root_time}\ttime 1: {tseqs[1].max_root_time}", flush=True)
+        print("Matching nodes", flush=True)
         node_mapping = match_nodes(tseqs[0], tseqs[1], node.age)
-        print("Union\'ing pops: ", pops)
+        print("Union\'ing pops: ", pops, flush=True)
         tsu = tseqs[0].union(tseqs[1], node_mapping)
         in_tseqs[node.taxon.label] = tsu, pops
     assert len(in_tseqs) == 1

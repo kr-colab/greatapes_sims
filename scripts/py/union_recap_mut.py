@@ -13,7 +13,7 @@ import os
 import pyslim
 from helper_functions import *
 import operator
-
+import gc
 
 # variables
 parser = argparse.ArgumentParser(description='Perform the union and output stats from tree sequences.')
@@ -88,14 +88,14 @@ tree = add_blen_from_meta(tree, sims_full, args["rand_id"])
 union_path = f"{trees_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep']}.union.trees"
 recap_mut_path = f"{trees_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep']}.union.recap.mut.trees"
 pops_path = f"{trees_path}{args['rand_id']}/{args['rand_id']}_rep{args['rep']}.pops"
-print("Loading union-ing tree sequences!")
+print("Loading union-ing tree sequences!", flush=True)
 tsu,  pops = union_tseqs(tree,args["rand_id"],args["rep"], trees_path+args['rand_id']+"/")
 print(pops, flush=True)
 tcu = tsu.dump_tables()
 del tsu
 if np.any(np.isnan(tcu.mutations.time)):
     # TODO: remove this once using slim that adds time
-    print("SLiM tree sequence did not have mutation times.")
+    print("SLiM tree sequence did not have mutation times.", flush=True)
     tcu.compute_mutation_times()
 tsu = tcu.tree_sequence()
 del tcu
@@ -108,36 +108,43 @@ slim_gen = int(tsu.max_root_time) * args['rescf']
 # refactoring time if simulation was run with rescaling
 if args['rescf'] > 1:
     tsu = refactor_time(tsu, args['rescf'], operator.imul)
-
-print("Dumping union\'ed treeseq")
+collected = gc.collect()
+print("Garbage collector: collected", "%d objects." % collected, flush=True)
+print("Dumping union\'ed treeseq", flush=True)
 tsu.dump(union_path)
 with open(pops_path, "w") as f:
     f.write(str(pops))
 # recapitating
 # doing a hacky recapitation bc pyslim hasn't been updated to use msprime1.0
-print("Recapitating")
+print("Recapitating", flush=True)
 demography = msprime.Demography.from_tree_sequence(tsu)
 for pop in demography.populations:
     pop.initial_size=args["recapN"]
 recomb_map = msprime.RateMap.read_hapmap(rec_hap_path, position_col=1, rate_col=2)
 recap_tsu = msprime.sim_ancestry(initial_state=tsu, recombination_rate=recomb_map, demography=demography)
 del tsu # too much ram
-print(slim_gen, recap_tsu.max_root_time, recap_tsu.num_mutations)
+collected = gc.collect()
+print("Garbage collector: collected", "%d objects." % collected, flush=True)
+print(slim_gen, recap_tsu.max_root_time, recap_tsu.num_mutations, flush=True)
 
 # mutating
 mut_map = msp_mutation_rate_map(exons, args["total_mut_rate"], args["region_mut_rate"], int(recap_tsu.sequence_length))
 # figuring out the max id slim used
-print("Mutating!")
+print("Mutating!", flush=True)
 max_id = -1
 for mut in recap_tsu.mutations():
     for d in mut.derived_state.split(","):
         max_id = max(max_id, int(d))
 model = msprime.SLiMMutationModel(type=3, next_id=max_id+1)
-print("Before mutate:", recap_tsu.num_mutations)
+print("Before mutate:", recap_tsu.num_mutations, flush=True)
 # adding mutations to recapitated part
 recap_tsu = msprime.sim_mutations(recap_tsu, start_time=slim_gen, model=model, rate=args["total_mut_rate"], keep=True)
-print("Mutations added in the recapitation:", recap_tsu.num_mutations)
+print("Mutations added in the recapitation:", recap_tsu.num_mutations, flush=True)
+collected = gc.collect()
+print("Garbage collector: collected", "%d objects." % collected, flush=True)
 # adding mutations to the SLiM part
 recap_tsu = msprime.sim_mutations(recap_tsu, end_time=slim_gen, model=model, rate=mut_map, keep=True)
-print("Total mutations:", recap_tsu.num_mutations)
+print("Total mutations:", recap_tsu.num_mutations, flush=True)
+collected = gc.collect()
+print("Garbage collector: collected", "%d objects." % collected, flush=True)
 recap_tsu.dump(recap_mut_path)
