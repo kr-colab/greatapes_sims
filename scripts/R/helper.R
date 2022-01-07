@@ -87,7 +87,7 @@ meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv") {
         spaced_desc = paste0("win-size=", win_size, " merged-mask=", merged_mask, " prop-acc=", prop)
         desc = str_replace_all(spaced_desc, " ", "_")
         desc = str_replace_all(desc, "=", "_")
-        meta = list("win_size" = as.integer(win_size), "merged_mask" = merged_mask, "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data)
+        meta = list("win_size" = as.integer(win_size), "merged_mask" = merged_mask, "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=0)
     } else {
         if (is_sigma) {
             print("entrei")
@@ -104,7 +104,7 @@ meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv") {
             desc = str_replace_all(spaced_desc, " ", "_")
             desc = str_replace_all(desc, "=", "_")
             desc = str_replace_all(desc, "\n", "_")
-            meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data)
+            meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=sigma)
         } else {
             strp = paste0('.*sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)', suffix)
             matches = str_match(fname, strp)
@@ -116,7 +116,7 @@ meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv") {
             desc = str_replace_all(spaced_desc, " ", "_")
             desc = str_replace_all(desc, "=", "_")
             desc = str_replace_all(desc, "\n", "_")
-            meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data)
+            meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=0)
         }
 
     }
