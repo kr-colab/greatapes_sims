@@ -43,7 +43,6 @@ df = sinfo[(sinfo.win_len == -1) & (sinfo.padding==0)& (sinfo.rescf == "1") &(si
 # this will be used to compute covariances
 all_neut = sinfo[(sinfo.posrate < 1e-16) &(sinfo.delrate < 1e-16)][diff_cols+["rand_id","sup_rand_id"]].drop_duplicates()
 
-    output: f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.union.recap.mut.trees", f"{config['out_path']}{{rand_id}}/{{rand_id}}_rep{{rep}}.pops" 
 neut_tss = [f"{recaptreespath}"]
 
 cov_stats = [f"{recaptreespath}{rid}/{rid}_rep{rep}." for rep in reps for rid in df.rand_id.unique()]
