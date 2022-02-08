@@ -1,0 +1,77 @@
+seed: 748266
+
+# Path to table containing tree to be simulated
+edges_path: "../../data/meta/edges_meta.tsv"
+
+# File with recombination map
+rec_file: "../../hg18/decode_rec_map.tsv"
+
+# Bed file with exon annotations
+ex_file: "../../hg18/annotations/exon.bed.merged"
+
+# Path to slim recipe
+recipe_path: "/home/murillor/projects/greatapes_sims/scripts/slim/recipe_sel_greatapes.slim"
+
+# Path where outfiles will be saved
+out_path: "../../output/"
+
+# Number of burn-in generations in units of N 
+# (where N is the population size of the root)
+burn_gen: 2
+
+# Rescaling factors
+rescale_factor:
+  - 1
+
+# Number of replicates
+nreps: 1
+
+# Total mutation rate (constant across chrom)
+total_mu: 2.0e-8
+
+# Selection parameters: proportion of mutations in exons which are
+# deleterious and beneficial, and mean selection coefficients
+del_props:
+  - 0
+  - 0.1
+  - 0.3
+  - 0.6
+pos_props:
+  - 0
+  - 0.0005
+  - 0.00005
+del_coefs:
+  - 0
+  - -0.03
+pos_coefs:
+  - 0
+  - 0.01
+pos_coef_decay_eps:
+  - 0
+  - 0.01
+  - 0.001
+# pd.DataFrame with chromosomes and windowing strategy
+# windowing -1 means simulate the entire chromosome
+chroms:
+  chr:
+    - "chr6"
+    - "chr19"
+  
+  windowing:
+    - -1
+    - -1
+
+# sample windows for each chr/win strategy or -1 for not
+n_sampled_windows: -1
+
+# Padding size (in bp)
+padding:
+  - 0
+  - 500000
+
+# Sample size to compute statistics on and window sizes
+stat_sample_size: 10
+stat_win_sizes:
+  - 10000
+  - 100000
+  - 1000000
