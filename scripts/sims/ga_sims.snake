@@ -240,7 +240,7 @@ rule root:
     params: recipe = config['recipe_path'], s = lambda wildcards: tmp[(tmp.edge==root_edge) & (tmp.rand_id==wildcards.rand_id)].par_string.item()
     output: f"{config['out_path']}{{rand_id}}/{root_edge}_{{rand_id}}_rep{{rep}}.trees"
     benchmark: f"../../benchmarks/{root_edge}_{{rand_id}}_rep{{rep}}.slim.benchmark.txt"
-    resources: mem_mb=lambda wildcards, attempt: (1+(3*(attempt/6))) * 36000, runtime=5*24*60
+    resources: mem_mb=lambda wildcards, attempt: (1+(3*(attempt/6))) * 54000, runtime=5*24*60
     threads: 2
     shell:  "slim -m -t {params.s} -d outfile='\"{output}\"' {params.recipe}"
 
@@ -258,7 +258,7 @@ rule branch:
     wildcard_constraints: edge=f"(?!{root_edge}).*", rep="[0-9]+"
     output: f"{config['out_path']}{{rand_id}}/{{edge}}_{{rand_id}}_rep{{rep}}.trees"
     benchmark: "../../benchmarks/{edge}_{rand_id}_rep{rep}.slim.benchmark.txt"
-    resources: mem_mb=lambda wildcards, attempt: (1+(3*(attempt/6))) * 36000, runtime=5*24*60
+    resources: mem_mb=lambda wildcards, attempt: (1+(3*(attempt/6))) * 54000, runtime=5*24*60
     threads: 2
     shell: "slim -m -t {params.s} -d path_population_tree='\"{input}\"' -d outfile='\"{output}\"' {params.recipe}"
 

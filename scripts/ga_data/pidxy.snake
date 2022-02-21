@@ -163,7 +163,7 @@ rule r_analysis:
     input: in_file=f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}.tsv', rscript=config["path_Rscript"]
     params: outpath = config["out_path"], outpath_figs = config["out_path_figs"], prop_acc = config["prop_acc"]
     output: f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.pdf'
-    resources: cpus=2, runtime=120, mem_mb=76000
+    resources: cpus=2, runtime=240, mem_mb=76000
     shell:
         "Rscript {input.rscript} {input.in_file} {params.outpath} {params.outpath_figs} {params.prop_acc}" 
     
