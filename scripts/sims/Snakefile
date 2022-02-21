@@ -1,0 +1,38 @@
+# Master Snakefile for running all sims
+# snakemake --profile slurm
+import yaml
+
+with open("chr12_full.yaml") as f:
+    config_chr12full = yaml.load(f, Loader=yaml.FullLoader)
+
+module sims_chr12_full_workflow:
+    snakefile: "ga_sims.snake"
+    config:  config_chr12full
+
+use rule * from sims_chr12_full_workflow as chr12full_*
+
+with open("chr12_strongbgs.yaml") as f:
+    config_chr12strong = yaml.load(f, Loader=yaml.FullLoader)
+
+module sims_chr12_strongbgs_workflow:
+    snakefile: "ga_sims.snake"
+    config: config_chr12strong
+
+use rule all from sims_chr12_strongbgs_workflow as chr12strongbgs_all
+
+with open("partialsweeps.yaml") as f:
+    config_partialsweeps = yaml.load(f, Loader=yaml.FullLoader)
+
+module sims_partialsweeps_workflow:
+    snakefile: "ga_sims.snake"
+    config: config_partialsweeps 
+
+use rule all from sims_partialsweeps_workflow as chr12partial_all
+
+# Define a new default target that collects all the targets from the modules.
+rule all:
+    input:
+        rules.chr12full_all.input,
+        rules.chr12strongbgs_all.input,
+        rules.chr12partial_all.input
+    default_target: True
