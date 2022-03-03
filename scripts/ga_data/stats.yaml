@@ -7,8 +7,20 @@ zarr_path: "../../data/processed/"
 # Path where BED files with regions to be masked reside
 mask_path: "/projects/kernlab/shared/greatapes/snp_data/callability_masks/"
 
+# Path to ancestral allele calls
+ancestral_path: "/projects/kernlab/shared/greatapes/ancestral_alleles"
+
+# Path to processed ancestral zarr
+ancestral_zarr_path: "../../data/processed/ancestral_alleles.zarr"
+
+# Path to node-parent metadata (needed for ancestal alleles)
+node_parent_path: "../../data/meta/node_parent.tsv"
+
 # Path to .tsv with chromosome names and sizes
 chr_meta_path: "../../hg18/chrom.sizes"
+
+# hg18 fastas
+hg18_fas_path: "/projects/kernlab/shared/hg18/fastas"
 
 # Output path
 out_path: "../../output/greatapes-diversity-data/"

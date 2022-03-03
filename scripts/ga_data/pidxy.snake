@@ -7,6 +7,8 @@ import pandas as pd
 import itertools
 import argparse
 from stats_helper import *
+import zarr
+from Bio import SeqIO
 import snakemake
 
 """
@@ -59,14 +61,20 @@ if config["merged_mask"]:
         for c in dic_acc.keys():
             merged_zarr.create_dataset(c, shape=dic_acc[c].shape, data=dic_acc[c])
 
+# opening ancestral alleles zarr root
+anc_root = zarr.open_group(config['ancestral_zarr_path'], mode='a')
 
-
-def calc_pidxy(c, clen, pop1, callsets, wsize, merged_zarr = None):
+def calc_pidxy(c, clen, pop1, callsets, wsize, merged_zarr = None, anc_state_mask = None):
     df = pd.DataFrame(columns=['value', 'stat','spp1', 'spp2', 'chr', 'start', 'end', 'n_acc_bases', 'n_snps'])
     if merged_zarr is not None:
         acc1 = merged_zarr[c][:]
     else:
         acc1 = callsets[pop1][c]["accessibility"][:]
+    if anc_state_mask is not None:
+        print("Using ancestral state mask", flush=True)
+        tmp = np.logical_and(acc1,anc_state_mask)
+        acc1 = tmp
+        del tmp
     gts1, pos1, alt1, ngts1, vcf_features = callset_to_masked_gt(callsets[pop1], c, acc1)
     ac1 = gts1.count_alleles()
     pi1, windows1, n_bases1, counts1 = allel.windowed_diversity(pos1, ac1, size=wsize, start=1, stop=clen, is_accessible=acc1)
@@ -105,7 +113,7 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, merged_zarr = None):
         ac2 = gts2.count_alleles()
         mpos, mac1, mac2 = merge_allel_arrays(pos1, pos2, ac1, ac2, ngts1, ngts2, alt1, alt2)
         if merged_zarr is not None:
-            macc = merged_zarr[c][:]
+            macc = acc1 
         else:
             macc = np.logical_and(acc1,acc2)
         dxy, windows, n_bases, counts = allel.windowed_divergence(mpos, mac1, mac2, size=wsize, start=1, stop=clen, is_accessible=macc)
@@ -130,12 +138,55 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, merged_zarr = None):
         assert (windows==windows1).all()
     return df
 
+ancestral_alleles_paths = [f'{config["ancestral_zarr_path"]}/{c}/great-apes/all' for  c in chroms.chr]
 chr_pop_files = [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"]]
 merged_out_files = [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}.tsv' for wsize in config["win_sizes"]]
 merged_stat_files = [f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"]]
 
 rule all:
-    input: merged_out_files + merged_stat_files
+    input: merged_out_files + merged_stat_files + ancestral_alleles_paths
+
+rule build_ancestral_alleles:
+    output: directory(f'{config["ancestral_zarr_path"]}/{{c}}/great-apes/all')
+    resources: cpus=1, runtime=240, mem_mb=48000
+    run:
+        c = wildcards.c
+        anc_files_suffix = ".calls.txt.gz"
+        anc_files_colnames = ["chromosome","position","leaf.1","leaf.2","leaf.3","leaf.4","leaf.5","leaf.6","leaf.7",
+                              "leaf.8","leaf.9","leaf.10","leaf.11","inner.12","inner.13","inner.14","inner.15",
+                              "inner.16","inner.17","inner.18","inner.19","inner.20","hg18","rheMac2"]
+        fas_suffix = ".fa.masked"
+        possible_states = ["A", "C", "T", "G"]
+        node_parent = pd.read_csv(config['node_parent_path'], sep="\t")
+        chrom = anc_root.create_group(c)
+        anc = pd.read_csv(f'{config["ancestral_path"]}/{c}{anc_files_suffix}', compression="gzip", header=None, skiprows=1, sep="\t", names=anc_files_colnames)
+        # positions are 1-based in the ancestral calls file
+        anc["position"] = anc["position"]-1
+        # reading the fasta (the ancestral file does not have all bases, just where snps were called)
+        record = SeqIO.read(f'{config["hg18_fas_path"]}/{c}{fas_suffix}', "fasta")
+        seq = np.array(list(str(record.seq)))
+        del record
+        for index, row in node_parent.iterrows():
+            focal_encoded_name = row["node"]
+            focal_name = row["name"]
+            print(f'{c}: Filling ancestral state for {focal_name}')
+            focal = chrom.create_group(focal_name)
+            for state in possible_states:
+                print(f'\t state {state}')
+                # building an boolean array in which indices are the positions along the genome
+                # and values are whether the site at that position had ancestral state == `state` or not
+                # first, let's assume that hg18 fasta carried all the right ancestral calls
+                tmp = (seq == state)
+                # now, let's see where the ancestrall alleles that were called are equal to that state
+                is_focal_anc_state = (anc[focal_encoded_name].to_numpy() == state)
+                tmp[anc["position"][is_focal_anc_state]] = True
+                tmp[anc["position"][np.invert(is_focal_anc_state)]] = False
+                focal.create_dataset(name=state, shape= tmp.shape, data = tmp)
+            print(f'\t state N')
+            Ns = ((focal['A'][:] + focal['T'][:] + focal['C'][:] + focal['G'][:]) == 0)
+            print(f'\t state all')
+            alls = np.full(focal['A'].shape, True)
+            focal.create_dataset(name="all", shape= alls.shape, data = alls)
 
 rule chr_pop_pidxy:
     output: f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{{c}}_pop_{{popn}}.tsv'
