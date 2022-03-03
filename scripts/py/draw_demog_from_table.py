@@ -1,6 +1,6 @@
-tree_table_path = "../data/meta/edges_meta.tsv"
+tree_table_path = "../../data/meta/edges_meta.tsv"
 burnin = 2 # 2*N burn in
-out_nwk_fname = "../output/great_apes.nwk"
+out_nwk_fname = "../../output/great_apes.nwk"
 
 import pandas as pd
 import msprime
@@ -10,7 +10,7 @@ import demesdraw
 df = pd.read_csv(tree_table_path, sep="\t")
 df.loc[0, "gens"] = burnin * df.loc[0].N
 
-def df_to_nwk(focal, df, parent_col="parent", edge_col="edge", time_col="gens"):
+def df_to_nwk(focal, df, parent_col="parent", edge_col="edge", time_col="edge_age_kya"):
     focal_row = df[df[edge_col] == focal]
     focal_time = focal_row[time_col].item()
     tree_str = f'{focal}:{focal_time}'
@@ -58,9 +58,10 @@ positions = {
             }
 demog = msprime.Demography.from_species_tree(nwk_tree, initial_size = pop_sizes)
 dgraph = demog.to_demes()
+dgraph.time_units = "Kya"
 w = 1.2 * demesdraw.utils.size_max(dgraph)
 for k, v in positions.items():
     positions[k] = v * w
 fig, ax = demesdraw.utils.get_fig_axes(scale=1.85)
 ax = demesdraw.tubes(dgraph, ax, positions=positions) 
-ax.figure.savefig("../output/figs/tubes_demog_great_apes.pdf")
+ax.figure.savefig("../../output/tubes_demog_great_apes.pdf")
