@@ -128,10 +128,10 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, state, anc_states_zarr, tree, mer
                 pop2dash = "humans"
             if pop2dash == "western-gorilla":
                 pop2dash = "western-gorila"
-            print(pop1dash, pop2dash, flush=True)
             mrca = tree.mrca(taxon_labels=[pop1dash, pop2dash]).taxon.label
             mrcadash = mrca.replace('_','-')
             macc = np.logical_and(macc, anc_states_zarr[c][mrcadash][state][:])
+            print(f'Pop1{pop1dash}, pop2 {pop2dash}, mrca {mrcadash}', flush=True)
         gts2, pos2, alt2, ngts2, _ = callset_to_masked_gt(callsets[pop2], c, macc)
         ac2 = gts2.count_alleles()
         mpos, mac1, mac2 = merge_allel_arrays(pos1, pos2, ac1, ac2, ngts1, ngts2, alt1, alt2)
@@ -187,9 +187,13 @@ rule build_ancestral_alleles:
         seq = np.array(list(str(record.seq)))
         del record
         for index, row in node_parent.iterrows():
-            focal_parent = row["parent"]
+            # for the leaves, we get the state at inferred for the parent, but for the inner nodes
+            # then we get the state inferred at that node
+            # a lot of uncertainty of the state at the great-apes node, so I'm using the rheMac2 state instead of inferred
+            anc_col = row["parent"] if (row["node"].startswith("leaf") or row["name"] == "great-apes") else row["node"]
             focal_name = row["name"]
-            print(f'{c}: Filling ancestral state for {focal_name}')
+            print(f'{c}: Filling ancestral state for {focal_name}', flush=True)
+            print(f'Ancestral column for {focal_name} is {anc_col}', flush=True)
             focal = chrom.create_group(focal_name)
             for state in possible_states:
                 print(f'\t state {state}')
@@ -198,7 +202,7 @@ rule build_ancestral_alleles:
                 # first, let's assume that hg18 fasta carried all the right ancestral calls
                 tmp = (seq == state)
                 # now, let's see where the ancestrall alleles that were called are equal to that state
-                is_focal_anc_state = (anc[focal_parent].to_numpy() == state)
+                is_focal_anc_state = (anc[anc_col].to_numpy() == state)
                 tmp[anc["position"][is_focal_anc_state]] = True
                 tmp[anc["position"][np.invert(is_focal_anc_state)]] = False
                 focal.create_dataset(name=state, shape= tmp.shape, data = tmp)
