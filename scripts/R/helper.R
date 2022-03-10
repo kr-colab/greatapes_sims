@@ -73,7 +73,7 @@ meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv") {
     is_ga_data = grepl(ga_data_str,fname, fixed=TRUE)
     is_sigma = grepl("sigma", fname, fixed=TRUE)
     if (is_ga_data) {
-        strp = '.*win-size_(\\d+)_merged-mask_(\\w+)'
+        strp = '.*win-size_(\\d+)_merged-mask_(\\w+)_state_(\\w+)'
         if (is.null(prop)){
             strp = paste0(strp, '_prop-acc_(.+)')
         }
@@ -81,13 +81,16 @@ meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv") {
         matches = str_match(fname, strp)
         win_size = matches[2]
         merged_mask = matches[3]
+        state = matches[4]
         if (is.null(prop)) {
-            prop = matches[4]
+            prop = matches[5]
         }
-        spaced_desc = paste0("win-size=", win_size, " merged-mask=", merged_mask, " prop-acc=", prop)
+        spaced_desc = paste0("win-size=", win_size, " merged-mask=", merged_mask, " state=", state, " prop-acc=", prop)
         desc = str_replace_all(spaced_desc, " ", "_")
         desc = str_replace_all(desc, "=", "_")
-        meta = list("win_size" = as.integer(win_size), "merged_mask" = merged_mask, "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=0)
+        if (state != "all")
+            prop = prop/8
+        meta = list("win_size" = as.integer(win_size), "merged_mask" = merged_mask, "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=0, "state"=state)
     } else {
         if (is_sigma) {
             print("entrei")
@@ -104,7 +107,7 @@ meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv") {
             desc = str_replace_all(spaced_desc, " ", "_")
             desc = str_replace_all(desc, "=", "_")
             desc = str_replace_all(desc, "\n", "_")
-            meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=sigma)
+            meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=sigma, "state"="all")
         } else {
             strp = paste0('.*sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)', suffix)
             matches = str_match(fname, strp)
@@ -116,7 +119,7 @@ meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv") {
             desc = str_replace_all(spaced_desc, " ", "_")
             desc = str_replace_all(desc, "=", "_")
             desc = str_replace_all(desc, "\n", "_")
-            meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=0)
+            meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=0, state="all")
         }
 
     }

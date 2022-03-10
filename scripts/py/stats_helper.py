@@ -109,7 +109,7 @@ def anc_dict_from_file(c, path_anc, path_fas, node="inner.20"):
     as keys, and boolean np arrays indicating which positions were that state'''
     anc_state = dict()
     states=["A", "T", "C", "G"]
-    anc = pd.read_csv(path_anc+c+".calls.txt", header=None, skiprows=1, sep="\t",
+    anc = pd.read_csv(path_anc+c+".calls.txt.gz", header=None, skiprows=1, sep="\t",
             names = ["chromosome","position","leaf.1","leaf.2","leaf.3","leaf.4","leaf.5","leaf.6","leaf.7","leaf.8","leaf.9","leaf.10","leaf.11","inner.12","inner.13","inner.14","inner.15","inner.16","inner.17","inner.18","inner.19","inner.20","hg18","rheMac2"])
     anc["position"] = anc["position"]-1
     anc_alleles = anc[node]

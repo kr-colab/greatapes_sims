@@ -7,6 +7,7 @@ import pandas as pd
 import itertools
 import argparse
 from stats_helper import *
+from helper_functions import *
 import zarr
 from Bio import SeqIO
 import snakemake
@@ -21,6 +22,12 @@ print(config)
 chroms = pd.read_csv(config["chr_meta_path"], sep="\t", header=None, names=["chr", "clen"])
 cnames = ["chr" + str(i) for i in range(1, 23)]
 chroms = chroms.loc[[c in cnames for c in chroms.chr]]
+
+edges = pd.read_csv(config["edges_path"], sep="\t")
+edges["edge"] = edges["edge"].str.replace('_', '-')
+edges["parent"] = edges["parent"].str.replace('_', '-')
+edges.parent= edges.parent.fillna("")
+tree = build_tree_from_df(edges)
 
 vcfs = glob.glob(f'{config["vcf_path"]}*.vcf.gz')
 base_names = [vcf.split("/")[-1][0:-len(".vcf.gz")] for vcf in vcfs]
@@ -64,17 +71,20 @@ if config["merged_mask"]:
 # opening ancestral alleles zarr root
 anc_root = zarr.open_group(config['ancestral_zarr_path'], mode='a')
 
-def calc_pidxy(c, clen, pop1, callsets, wsize, merged_zarr = None, anc_state_mask = None):
+def calc_pidxy(c, clen, pop1, callsets, wsize, state, anc_states_zarr, tree, merged_zarr = None):
+    pop1dash = pop1.replace('_','-')
+    if pop1 == "homo":
+        pop1dash = "humans"
+    if pop1dash == "western-gorilla":
+        pop1dash = "western-gorila"
+    # if using anc_states_zarr must also pass tree (dendropy tree with taxon labels)
     df = pd.DataFrame(columns=['value', 'stat','spp1', 'spp2', 'chr', 'start', 'end', 'n_acc_bases', 'n_snps'])
     if merged_zarr is not None:
         acc1 = merged_zarr[c][:]
     else:
         acc1 = callsets[pop1][c]["accessibility"][:]
-    if anc_state_mask is not None:
-        print("Using ancestral state mask", flush=True)
-        tmp = np.logical_and(acc1,anc_state_mask)
-        acc1 = tmp
-        del tmp
+    if state != "all":
+        acc1 = np.logical_and(acc1, anc_states_zarr[c][pop1dash][state][:])
     gts1, pos1, alt1, ngts1, vcf_features = callset_to_masked_gt(callsets[pop1], c, acc1)
     ac1 = gts1.count_alleles()
     pi1, windows1, n_bases1, counts1 = allel.windowed_diversity(pos1, ac1, size=wsize, start=1, stop=clen, is_accessible=acc1)
@@ -108,14 +118,23 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, merged_zarr = None, anc_state_mas
     for pop2 in pops:
         if pop2 == pop1:
             break
-        acc2 = callsets[pop2][c]["accessibility"][:]
-        gts2, pos2, alt2, ngts2, _ = callset_to_masked_gt(callsets[pop2], c, acc2)
+        if merged_zarr is not None:
+            macc = merged_zarr[c][:]
+        else:
+            macc = np.logical_and(callsets[pop1][c]["accessibility"][:],callsets[pop2][c]["accessibility"][:])
+        if state != "all":
+            pop2dash = pop2.replace('_','-')
+            if pop2dash == "homo":
+                pop2dash = "humans"
+            if pop2dash == "western-gorilla":
+                pop2dash = "western-gorila"
+            print(pop1dash, pop2dash, flush=True)
+            mrca = tree.mrca(taxon_labels=[pop1dash, pop2dash]).taxon.label
+            mrcadash = mrca.replace('_','-')
+            macc = np.logical_and(macc, anc_states_zarr[c][mrcadash][state][:])
+        gts2, pos2, alt2, ngts2, _ = callset_to_masked_gt(callsets[pop2], c, macc)
         ac2 = gts2.count_alleles()
         mpos, mac1, mac2 = merge_allel_arrays(pos1, pos2, ac1, ac2, ngts1, ngts2, alt1, alt2)
-        if merged_zarr is not None:
-            macc = acc1 
-        else:
-            macc = np.logical_and(acc1,acc2)
         dxy, windows, n_bases, counts = allel.windowed_divergence(mpos, mac1, mac2, size=wsize, start=1, stop=clen, is_accessible=macc)
         tmp = pd.DataFrame()
         tmp['value'] = dxy
@@ -138,10 +157,11 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, merged_zarr = None, anc_state_mas
         assert (windows==windows1).all()
     return df
 
+possible_anc_states = ["A", "T", "C", "G", "N", "all"]
 ancestral_alleles_paths = [f'{config["ancestral_zarr_path"]}/{c}/great-apes/all' for  c in chroms.chr]
-chr_pop_files = [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"]]
-merged_out_files = [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}.tsv' for wsize in config["win_sizes"]]
-merged_stat_files = [f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"]]
+chr_pop_files = [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}_state_{state}.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"] for state in possible_anc_states]
+merged_out_files = [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}.tsv' for wsize in config["win_sizes"] for state in possible_anc_states]
+merged_stat_files = [f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"] for state in possible_anc_states]
 
 rule all:
     input: merged_out_files + merged_stat_files + ancestral_alleles_paths
@@ -167,7 +187,7 @@ rule build_ancestral_alleles:
         seq = np.array(list(str(record.seq)))
         del record
         for index, row in node_parent.iterrows():
-            focal_encoded_name = row["node"]
+            focal_parent = row["parent"]
             focal_name = row["name"]
             print(f'{c}: Filling ancestral state for {focal_name}')
             focal = chrom.create_group(focal_name)
@@ -178,26 +198,28 @@ rule build_ancestral_alleles:
                 # first, let's assume that hg18 fasta carried all the right ancestral calls
                 tmp = (seq == state)
                 # now, let's see where the ancestrall alleles that were called are equal to that state
-                is_focal_anc_state = (anc[focal_encoded_name].to_numpy() == state)
+                is_focal_anc_state = (anc[focal_parent].to_numpy() == state)
                 tmp[anc["position"][is_focal_anc_state]] = True
                 tmp[anc["position"][np.invert(is_focal_anc_state)]] = False
                 focal.create_dataset(name=state, shape= tmp.shape, data = tmp)
             print(f'\t state N')
             Ns = ((focal['A'][:] + focal['T'][:] + focal['C'][:] + focal['G'][:]) == 0)
+            focal.create_dataset(name="N", shape= Ns.shape, data = Ns)
             print(f'\t state all')
             alls = np.full(focal['A'].shape, True)
             focal.create_dataset(name="all", shape= alls.shape, data = alls)
 
 rule chr_pop_pidxy:
-    output: f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{{c}}_pop_{{popn}}.tsv'
+    input: directory(f'{config["ancestral_zarr_path"]}/{{c}}/great-apes/all')
+    output: f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{{c}}_pop_{{popn}}_state_{{state}}.tsv'
     resources: cpus=1, runtime=120
     run:
-        df = calc_pidxy(wildcards.c, chroms[chroms.chr == wildcards.c].clen.item(), wildcards.popn, callsets, int(wildcards.wsize), merged_zarr)
+        df = calc_pidxy(wildcards.c, chroms[chroms.chr == wildcards.c].clen.item(), wildcards.popn, callsets, int(wildcards.wsize), wildcards.state, anc_root, tree, merged_zarr)
         df.to_csv(path_or_buf=output[0], index=False, sep="\t")
 
 rule merge:
-    input: [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{popn}.tsv' for c in chroms.chr for popn in callsets.keys()]
-    output: f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}.tsv'
+    input: [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{popn}_state_{{state}}.tsv' for c in chroms.chr for popn in callsets.keys()]
+    output: f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}.tsv'
     resources: cpus=1, runtime=120
     run:
         dfs = [pd.read_csv(f, sep="\t") for f in input]
@@ -211,9 +233,9 @@ rule ipynb_to_r:
         "Rscript {input.conv_script} {input.in_file}"
 
 rule r_analysis:
-    input: in_file=f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}.tsv', rscript=config["path_Rscript"]
+    input: in_file=f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}.tsv', rscript=config["path_Rscript"]
     params: outpath = config["out_path"], outpath_figs = config["out_path_figs"], prop_acc = config["prop_acc"]
-    output: f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_prop-acc_{config["prop_acc"]}.pdf'
+    output: f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}_prop-acc_{config["prop_acc"]}.pdf'
     resources: cpus=2, runtime=240, mem_mb=76000
     shell:
         "Rscript {input.rscript} {input.in_file} {params.outpath} {params.outpath_figs} {params.prop_acc}" 

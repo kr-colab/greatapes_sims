@@ -80,7 +80,7 @@ def msp_mutation_rate_map(intervals, total_rate, intervals_rate, length):
     return msprime.RateMap(position=breaks, rate=rates)
 
 
-def subtree(focal, edges, taxon_namespace, nodes = None):
+def subtree(focal, edges, taxon_namespace, nodes = None, child="edge", parent="parent"):
     """
     Returns a dictionary of `dendropy.Node` objects from a `pandas.DataFrame`
     with two columns: `edge` and `parent`, which specifies
