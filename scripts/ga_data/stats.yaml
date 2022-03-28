@@ -13,6 +13,9 @@ ancestral_path: "/projects/kernlab/shared/greatapes/ancestral_alleles"
 # Path to processed ancestral zarr
 ancestral_zarr_path: "../../data/processed/ancestral_alleles.zarr"
 
+# Path to processed current alleles zarr
+current_zarr_path: "../../data/processed/current_alleles.zarr"
+
 # Path to node-parent metadata (needed for ancestal alleles)
 node_parent_path: "../../data/meta/node_parent.tsv"
 
