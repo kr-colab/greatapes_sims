@@ -68,12 +68,12 @@ get_mrow = function(row, cols, tree, treetbl) {
     return(mrow)
 }
 
-meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv") {
+meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv", state_prop_mult=1/8) {
     ga_data_str = "greatapes-diversity-data"
     is_ga_data = grepl(ga_data_str,fname, fixed=TRUE)
     is_sigma = grepl("sigma", fname, fixed=TRUE)
     if (is_ga_data) {
-        strp = '.*win-size_(\\d+)_merged-mask_(\\w+)_state_(\\w+)'
+        strp = '.*win-size_(\\d+)_merged-mask_(\\w+)_state_(.+)'
         if (is.null(prop)){
             strp = paste0(strp, '_prop-acc_(.+)')
         }
@@ -89,7 +89,7 @@ meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv") {
         desc = str_replace_all(spaced_desc, " ", "_")
         desc = str_replace_all(desc, "=", "_")
         if (state != "all")
-            prop = prop/8
+            prop = prop * state_prop_mult
         meta = list("win_size" = as.integer(win_size), "merged_mask" = merged_mask, "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=0, "state"=state)
     } else {
         if (is_sigma) {

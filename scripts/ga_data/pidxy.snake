@@ -70,9 +70,8 @@ if config["merged_mask"]:
 
 # opening ancestral alleles zarr root
 anc_root = zarr.open_group(config['ancestral_zarr_path'], mode='a')
-curr_root = zarr.open_group(config['current_zarr_path'], mode='a')
 
-def calc_pidxy(c, clen, pop1, callsets, wsize, state, anc_states_zarr, curr_states_zarr, tree, merged_zarr = None):
+def calc_pidxy(c, clen, pop1, callsets, wsize, classes, anc_states_zarr, tree, merged_zarr = None):
     pop1dash = pop1.replace('_','-')
     if pop1 == "homo":
         pop1dash = "humans"
@@ -84,10 +83,13 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, state, anc_states_zarr, curr_stat
         acc1 = merged_zarr[c][:]
     else:
         acc1 = callsets[pop1][c]["accessibility"][:]
-    if state != "all":
-        strength1, strength2 = state.split(">")
-        acc1 = np.logical_and(acc1, anc_states_zarr[c][pop1dash][strength1][:])
-        acc1 = np.logical_and(acc1, curr_states_zarr[c][pop1dash][strength2][:])
+    if classes != "all":
+        is_mut_class = np.full(acc1.shape, False)
+        # multiple states within a class are separated by -
+        for mut_class in classes.split("-"):
+            is_mut_class = np.logical_or(anc_states_zarr[c][pop1dash][mut_class][:], is_mut_class)
+        acc1 = np.logical_and(acc1, is_mut_class)
+    print(f'We get {np.sum(acc1)} accessible bases for {pop1dash}', flush=True)
     gts1, pos1, alt1, ngts1, vcf_features = callset_to_masked_gt(callsets[pop1], c, acc1)
     ac1 = gts1.count_alleles()
     pi1, windows1, n_bases1, counts1 = allel.windowed_diversity(pos1, ac1, size=wsize, start=1, stop=clen, is_accessible=acc1)
@@ -119,24 +121,27 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, state, anc_states_zarr, curr_stat
     pops = list(callsets.keys())
     pops.sort()
     for pop2 in pops:
+        pop2dash = pop2.replace('_','-')
         if pop2 == pop1:
             break
         if merged_zarr is not None:
             macc = merged_zarr[c][:]
         else:
             macc = np.logical_and(callsets[pop1][c]["accessibility"][:],callsets[pop2][c]["accessibility"][:])
-        if state != "all":
-            pop2dash = pop2.replace('_','-')
+        if classes != "all":
             if pop2dash == "homo":
                 pop2dash = "humans"
             if pop2dash == "western-gorilla":
                 pop2dash = "western-gorila"
             mrca = tree.mrca(taxon_labels=[pop1dash, pop2dash]).taxon.label
             mrcadash = mrca.replace('_','-')
-            strength1, strength2 = state.split(">")
-            macc = np.logical_and(macc, anc_states_zarr[c][mrcadash][strength1][:])
-            macc = np.logical_and(macc, np.logical_or(curr_states_zarr[c][pop1dash][strength2][:], curr_states_zarr[c][pop1dash][strength2][:]))
+            is_mut_class = np.full(acc1.shape, False)
+            # multiple states within a class are separated by -
+            for mut_class in classes.split("-"):
+                is_mut_class = np.logical_or(anc_states_zarr[c][mrcadash][mut_class][:], is_mut_class)
+            macc = np.logical_and(macc, is_mut_class)
             print(f'Pop1{pop1dash}, pop2 {pop2dash}, mrca {mrcadash}', flush=True)
+        print(f'We get {np.sum(macc)} accessible bases for {pop1dash}, {pop2dash}', flush=True)
         gts2, pos2, alt2, ngts2, _ = callset_to_masked_gt(callsets[pop2], c, macc)
         ac2 = gts2.count_alleles()
         mpos, mac1, mac2 = merge_allel_arrays(pos1, pos2, ac1, ac2, ngts1, ngts2, alt1, alt2)
@@ -161,73 +166,26 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, state, anc_states_zarr, curr_stat
     #some sanity checks
         assert (windows==windows1).all()
     return df
-strength_dict = {"W":["a", "t", "a/t", "t/a"], "S":["c", "g", "c/g", "g/c"]}
-possible_anc_states = ["W>S", "S>W", "W>W", "S>S", "all"]
+
+# note the first one excludes WS/WN/NS which are all the possible weak to strong
+mutation_class_dict = {
+                        "A":["A", "a"],
+                        "T":["T", "t"],
+                        "C":["C", "c"],
+                        "G":["G", "g"]
+                    }
+possible_anc_classes = ["A", "T", "G", "C", "N", "A-T", "G-C", "all"]
 ancestral_alleles_paths = [f'{config["ancestral_zarr_path"]}/{c}/great-apes/all' for  c in chroms.chr]
-current_alleles_paths = [f'{config["current_zarr_path"]}/{c}/bonobo/all' for  c in chroms.chr]
-chr_pop_files = [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}_state_{state}.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"] for state in possible_anc_states]
-merged_out_files = [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}.tsv' for wsize in config["win_sizes"] for state in possible_anc_states]
-merged_stat_files = [f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"] for state in possible_anc_states]
+chr_pop_files = [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}_state_{state}.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"] for state in possible_anc_classes]
+merged_out_files = [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}.tsv' for wsize in config["win_sizes"] for state in possible_anc_classes]
+merged_stat_files = [f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"] for state in possible_anc_classes]
 
 rule all:
-    input: merged_out_files + merged_stat_files + ancestral_alleles_paths + current_alleles_paths
-
-rule build_current_alleles:
-    output: directory(f'{config["current_zarr_path"]}/{{c}}/bonobo/all')
-    resources: cpus=1, runtime=240, mem_mb=48000
-    run:
-        c = wildcards.c
-        anc_files_suffix = ".calls.txt.gz"
-        anc_files_colnames = ["chromosome","position","leaf.1","leaf.2","leaf.3","leaf.4","leaf.5","leaf.6","leaf.7",
-                              "leaf.8","leaf.9","leaf.10","leaf.11","inner.12","inner.13","inner.14","inner.15",
-                              "inner.16","inner.17","inner.18","inner.19","inner.20","hg18","rheMac2"]
-        fas_suffix = ".fa.masked"
-        node_parent = pd.read_csv(config['node_parent_path'], sep="\t")
-        chrom = curr_root.create_group(c)
-        anc = pd.read_csv(f'{config["ancestral_path"]}/{c}{anc_files_suffix}', compression="gzip", header=None, skiprows=1, sep="\t", names=anc_files_colnames)
-        # lower case bc we don't care if uncertain about ancestral call
-        lowerify_cols = [col for col in anc_files_colnames if col not in ["chromosome", "position"]]
-        anc[lowerify_cols]= anc[lowerify_cols].apply(lambda x: x.astype(str).str.lower(),axis=1)
-        # positions are 1-based in the ancestral calls file
-        anc["position"] = anc["position"]-1
-        # reading the fasta (the ancestral file does not have all bases, just where snps were called)
-        record = SeqIO.read(f'{config["hg18_fas_path"]}/{c}{fas_suffix}', "fasta")
-        seq = np.array(list(str(record.seq)))
-        seq = np.char.lower(seq)
-        del record
-        for index, row in node_parent.iterrows():
-            if not row["node"].startswith("leaf"):
-                continue
-            curr_col = row["node"]
-            focal_name = row["name"]
-            print(f'{c}: Filling current state for {focal_name}', flush=True)
-            print(f'State column for {focal_name} is {curr_col}', flush=True)
-            focal = chrom.create_group(focal_name)
-            for strength, alleles in strength_dict.items():
-                print(f'\t strength {strength}')
-                # building an boolean array in which indices are the positions along the genome
-                # and values are whether the site at that position had ancestral state == `state` or not
-                # first, let's assume that hg18 fasta carried all the right ancestral calls
-                all_tmp = np.full(seq.shape, False)
-                for allele in alleles:
-                    tmp = (seq == allele)
-                    # now, let's see where the ancestrall alleles that were called are equal to that state
-                    is_focal_anc_state = (anc[curr_col].to_numpy() == allele)
-                    tmp[anc["position"][is_focal_anc_state]] = True
-                    tmp[anc["position"][np.invert(is_focal_anc_state)]] = False
-                    all_tmp = np.logical_or(all_tmp, tmp)
-                focal.create_dataset(name=strength, shape= tmp.shape, data = all_tmp)
-            assert np.all((focal['W'][:] + focal['S'][:])<=1)
-            print(f'\t strength N')
-            Ns = ((focal['W'][:] + focal['S'][:]) == 0)
-            focal.create_dataset(name="N", shape= Ns.shape, data = Ns)
-            print(f'\t strength all')
-            alls = np.full(focal['W'].shape, True)
-            focal.create_dataset(name="all", shape= alls.shape, data = alls)
+    input: merged_out_files + merged_stat_files + ancestral_alleles_paths 
 
 rule build_ancestral_alleles:
     output: directory(f'{config["ancestral_zarr_path"]}/{{c}}/great-apes/all')
-    resources: cpus=1, runtime=240, mem_mb=48000
+    resources: cpus=1, runtime=300, mem_mb=72000
     run:
         c = wildcards.c
         anc_files_suffix = ".calls.txt.gz"
@@ -238,27 +196,24 @@ rule build_ancestral_alleles:
         node_parent = pd.read_csv(config['node_parent_path'], sep="\t")
         chrom = anc_root.create_group(c)
         anc = pd.read_csv(f'{config["ancestral_path"]}/{c}{anc_files_suffix}', compression="gzip", header=None, skiprows=1, sep="\t", names=anc_files_colnames)
-        # lower case bc we don't care if uncertain about ancestral call
-        lowerify_cols = [col for col in anc_files_colnames if col not in ["chromosome", "position"]]
-        anc[lowerify_cols]= anc[lowerify_cols].apply(lambda x: x.astype(str).str.lower(),axis=1)
         # positions are 1-based in the ancestral calls file
         anc["position"] = anc["position"]-1
         # reading the fasta (the ancestral file does not have all bases, just where snps were called)
         record = SeqIO.read(f'{config["hg18_fas_path"]}/{c}{fas_suffix}', "fasta")
         seq = np.array(list(str(record.seq)))
-        seq = np.char.lower(seq)
         del record
         for index, row in node_parent.iterrows():
             # for the leaves, we get the state at inferred for the parent, but for the inner nodes
             # then we get the state inferred at that node
             # a lot of uncertainty of the state at the great-apes node, so I'm using the rheMac2 state instead of inferred
             anc_col = row["parent"] if (row["node"].startswith("leaf") or row["name"] == "great-apes") else row["node"]
+            #anc_col = row["parent"] if row["node"].startswith("leaf") else row["node"]
             focal_name = row["name"]
             print(f'{c}: Filling ancestral state for {focal_name}', flush=True)
             print(f'Ancestral column for {focal_name} is {anc_col}', flush=True)
             focal = chrom.create_group(focal_name)
-            for strength, alleles in strength_dict.items():
-                print(f'\t strength {strength}')
+            for mut_class, alleles in mutation_class_dict.items():
+                print(f'\t mut_class {mut_class} alleles {alleles}', flush=True)
                 # building an boolean array in which indices are the positions along the genome
                 # and values are whether the site at that position had ancestral state == `state` or not
                 # first, let's assume that hg18 fasta carried all the right ancestral calls
@@ -266,25 +221,28 @@ rule build_ancestral_alleles:
                 for allele in alleles:
                     tmp = (seq == allele)
                     # now, let's see where the ancestrall alleles that were called are equal to that state
-                    is_focal_anc_state = (anc[anc_col].to_numpy() == allele)
+                    is_focal_anc_state = (anc[anc_col].to_numpy(dtype=str) == allele)
                     tmp[anc["position"][is_focal_anc_state]] = True
                     tmp[anc["position"][np.invert(is_focal_anc_state)]] = False
                     all_tmp = np.logical_or(all_tmp, tmp)
-                focal.create_dataset(name=strength, shape= tmp.shape, data = all_tmp)
-            assert np.all((focal['W'][:] + focal['S'][:])<=1)
-            print(f'\t strength N')
-            Ns = ((focal['W'][:] + focal['S'][:]) == 0)
+                focal.create_dataset(name=mut_class, shape= tmp.shape, data = all_tmp)
+            sum_over_classes = np.full(focal[list(mutation_class_dict.keys())[0]].shape, 0)
+            for mut_class in mutation_class_dict:
+                sum_over_classes += focal[mut_class][:]
+            assert np.all(sum_over_classes<=1)
+            print(f'\t mut_class N')
+            Ns = (sum_over_classes == 0)
             focal.create_dataset(name="N", shape= Ns.shape, data = Ns)
-            print(f'\t strength all')
-            alls = np.full(focal['W'].shape, True)
+            print(f'\t mut_class all')
+            alls = np.full(Ns.shape, True)
             focal.create_dataset(name="all", shape= alls.shape, data = alls)
 
 rule chr_pop_pidxy:
-    input: f'{config["ancestral_zarr_path"]}/{{c}}/great-apes/all', f'{config["current_zarr_path"]}/{{c}}/bonobo/all' 
+    input: f'{config["ancestral_zarr_path"]}/{{c}}/great-apes/all'
     output: f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{{c}}_pop_{{popn}}_state_{{state}}.tsv'
     resources: cpus=1, runtime=120
     run:
-        df = calc_pidxy(wildcards.c, chroms[chroms.chr == wildcards.c].clen.item(), wildcards.popn, callsets, int(wildcards.wsize), wildcards.state, anc_root, curr_root, tree, merged_zarr)
+        df = calc_pidxy(wildcards.c, chroms[chroms.chr == wildcards.c].clen.item(), wildcards.popn, callsets, int(wildcards.wsize), wildcards.state, anc_root, tree, merged_zarr)
         df.to_csv(path_or_buf=output[0], index=False, sep="\t")
 
 rule merge:
