@@ -107,6 +107,7 @@ def build_tree_from_df(edges):
     taxon_namespace = dendropy.TaxonNamespace(edges.edge.values.tolist())
     nodes = subtree(root_name, edges, taxon_namespace)
     tree = dendropy.Tree(seed_node = nodes[root_name], taxon_namespace=taxon_namespace)
+    tree.reroot_at_node(nodes[root_name])
     return(tree)
 
 def add_blen_from_meta(tree, meta, rand_id):
@@ -120,8 +121,11 @@ def add_blen_from_meta(tree, meta, rand_id):
     for node in tree.postorder_node_iter():
         print(node.taxon.label)
         subset = meta[(meta.edge==node.taxon.label) & (meta.rand_id == rand_id)]
-        print(subset)
+        print("This is the subset:", flush=True)
+        print(subset, flush=True)
         subset.drop(columns=["date"], inplace=True)
+        print("This is the dropped duplicates subset:", flush=True)
+        print(subset.drop_duplicates(), flush=True)
         assert len(subset.drop_duplicates()) == 1
         n_gens = np.floor(subset.gens.values[0]/subset.rescf.values[0])
         node.edge_length= n_gens

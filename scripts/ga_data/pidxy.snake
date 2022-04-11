@@ -11,6 +11,7 @@ from helper_functions import *
 import zarr
 from Bio import SeqIO
 import snakemake
+import copy
 
 """
 import yaml
@@ -28,6 +29,7 @@ edges["edge"] = edges["edge"].str.replace('_', '-')
 edges["parent"] = edges["parent"].str.replace('_', '-')
 edges.parent= edges.parent.fillna("")
 tree = build_tree_from_df(edges)
+print(tree, flush=True)
 
 vcfs = glob.glob(f'{config["vcf_path"]}*.vcf.gz')
 base_names = [vcf.split("/")[-1][0:-len(".vcf.gz")] for vcf in vcfs]
@@ -133,7 +135,8 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, classes, anc_states_zarr, tree, m
                 pop2dash = "humans"
             if pop2dash == "western-gorilla":
                 pop2dash = "western-gorila"
-            mrca = tree.mrca(taxon_labels=[pop1dash, pop2dash]).taxon.label
+            tree2 = copy.deepcopy(tree)
+            mrca = tree2.mrca(taxon_labels=[pop1dash, pop2dash]).taxon.label
             mrcadash = mrca.replace('_','-')
             is_mut_class = np.full(acc1.shape, False)
             # multiple states within a class are separated by -
