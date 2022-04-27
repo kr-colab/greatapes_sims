@@ -1,3 +1,4 @@
+import numcodecs
 import allel
 import glob
 import sys
@@ -12,6 +13,7 @@ import zarr
 from Bio import SeqIO
 import snakemake
 import copy
+import pdb
 
 """
 import yaml
@@ -72,8 +74,9 @@ if config["merged_mask"]:
 
 # opening ancestral alleles zarr root
 anc_root = zarr.open_group(config['ancestral_zarr_path'], mode='a')
+curr_root = zarr.open_group(config['current_zarr_path'], mode='a')
 
-def calc_pidxy(c, clen, pop1, callsets, wsize, classes, anc_states_zarr, tree, merged_zarr = None):
+def calc_pidxy(c, clen, pop1, callsets, wsize, classes, anc_states_zarr, curr, curr_states_zarr, tree, merged_zarr = None):
     pop1dash = pop1.replace('_','-')
     if pop1 == "homo":
         pop1dash = "humans"
@@ -123,6 +126,28 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, classes, anc_states_zarr, tree, m
     pops = list(callsets.keys())
     pops.sort()
     for pop2 in pops:
+        # getting the zarr arrays with current states
+        p1_curr = curr_states_zarr[c][pop1]
+        p2_curr = curr_states_zarr[c][pop2]
+        chunk_size = 100000
+        c1 = []
+        c2 = []
+        import pdb; pdb.set_trace()
+        assert len(p1_curr) == len(p2_curr)
+        for i in range(chunk_size, len(p1_curr), chunk_size):
+            c1 += list(p1_curr[i-chunk_size:i]+'-'+p2_curr[i-chunk_size:i])
+            c2 += list(p2_curr[i-chunk_size:i]+'-'+p1_curr[i-chunk_size:i])
+        if i < len(p1_curr):
+            c1 += list(p1_curr[i:len(p1_curr)]+'-'+p2_curr[i:len(p1_curr)])
+            c2 += list(p2_curr[i:len(p1_curr)]+'-'+p1_curr[i:len(p1_curr)])
+        c1 = np.array(c1, dtype="object")
+        c2 = np.array(c2, dtype="object")
+        if curr == "all":
+            is_curr = np.full(c1.shape, True)
+        elif curr == "other":
+            is_curr = np.logical_or.reduce([is_curr_type(ctype,c1,c2) for ctype in curr_type.keys()])
+        else:
+            is_curr = is_curr_type(curr,c1,c2)
         pop2dash = pop2.replace('_','-')
         if pop2 == pop1:
             break
@@ -148,7 +173,17 @@ def calc_pidxy(c, clen, pop1, callsets, wsize, classes, anc_states_zarr, tree, m
         gts2, pos2, alt2, ngts2, _ = callset_to_masked_gt(callsets[pop2], c, macc)
         ac2 = gts2.count_alleles()
         mpos, mac1, mac2 = merge_allel_arrays(pos1, pos2, ac1, ac2, ngts1, ngts2, alt1, alt2)
-        dxy, windows, n_bases, counts = allel.windowed_divergence(mpos, mac1, mac2, size=wsize, start=1, stop=clen, is_accessible=macc)
+        print(f'We get {mpos.shape} variants before filtering for current state', flush=True)
+        mpos, mac1,mac2 = mpos[is_curr[mpos-1]], mac1[is_curr[mpos-1]], mac2[is_curr[mpos-1]]
+        print(f'We get {mpos.shape} variants after filtering for current state {curr}', flush=True)
+        #pdb.set_trace()
+        if len(mpos) > 0:
+            dxy, windows, n_bases, counts = allel.windowed_divergence(mpos, mac1, mac2, size=wsize, start=1, stop=clen, is_accessible=macc)
+        else:
+            print("No avaliable bases for this dXY", flush=True)
+            dxy = np.full(pi1.shape, np.nan)
+            n_bases = np.full(pi1.shape, 0)
+            counts = np.full(pi1.shape, 0)
         tmp = pd.DataFrame()
         tmp['value'] = dxy
         tmp['stat'] = 'dxy'
@@ -177,14 +212,26 @@ mutation_class_dict = {
                         "C":["C", "c"],
                         "G":["G", "g"]
                     }
+curr_type = {
+                "WWSS":["A-A/T","A-T/A", "T-A/T", "T-T/A", "T-A", "A-T", "A-A", "T-T",
+                "G-G/C","G-C/G", "C-G/C", "C-C/G", "C-G", "G-C", "G-G", "C-C"],
+                "WS":["A-A/C","A-C/A", "A-A/G", "A-G/A", "C-A/C","C-C/A", "G-A/G", 
+                    "G-G/A", "A-C", "A-G", "T-T/C","T-C/T", "T-T/G", "T-G/T", "C-T/C","C-C/T", "G-T/G", "G-G/T", "T-C", "T-G"]
+            }
+is_curr_type =  lambda ctype,c1,c2: np.logical_or(np.in1d(c1, curr_type[ctype]), np.in1d(c2, curr_type[ctype]))
+possible_curr_classes = ["WWSS", "WS", "other", "all"]
 possible_anc_classes = ["A", "T", "G", "C", "N", "A-T", "G-C", "all"]
 ancestral_alleles_paths = [f'{config["ancestral_zarr_path"]}/{c}/great-apes/all' for  c in chroms.chr]
-chr_pop_files = [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}_state_{state}.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"] for state in possible_anc_classes]
-merged_out_files = [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}.tsv' for wsize in config["win_sizes"] for state in possible_anc_classes]
-merged_stat_files = [f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"] for state in possible_anc_classes]
+current_alleles_paths = [f'{config["current_zarr_path"]}/{c}/{spp}' for  c in chroms.chr for spp in callsets.keys()]
+chr_pop_files = [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}_state_{state}_curr_all.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"] for state in possible_anc_classes]
+chr_pop_files += [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}_state_all_curr_{curr}.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"] for curr in possible_curr_classes]
+merged_out_files = [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}_curr_all.tsv' for wsize in config["win_sizes"] for state in possible_anc_classes]
+merged_out_files += [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_all_curr_{curr}.tsv' for wsize in config["win_sizes"] for curr in possible_curr_classes]
+merged_stat_files = [f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}_curr_all_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"] for state in possible_anc_classes]
+merged_stat_files += [f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_all_curr_{curr}_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"] for curr in possible_curr_classes]
 
 rule all:
-    input: merged_out_files + merged_stat_files + ancestral_alleles_paths 
+    input: merged_out_files + merged_stat_files + ancestral_alleles_paths + current_alleles_paths
 
 rule build_ancestral_alleles:
     output: directory(f'{config["ancestral_zarr_path"]}/{{c}}/great-apes/all')
@@ -240,17 +287,36 @@ rule build_ancestral_alleles:
             alls = np.full(Ns.shape, True)
             focal.create_dataset(name="all", shape= alls.shape, data = alls)
 
-rule chr_pop_pidxy:
-    input: f'{config["ancestral_zarr_path"]}/{{c}}/great-apes/all'
-    output: f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{{c}}_pop_{{popn}}_state_{{state}}.tsv'
-    resources: cpus=1, runtime=120
+rule build_current_alleles:
+    output: directory(f'{config["current_zarr_path"]}/{{c}}/{{spp}}')
+    resources: cpus=1, runtime=300, mem_mb=72000
     run:
-        df = calc_pidxy(wildcards.c, chroms[chroms.chr == wildcards.c].clen.item(), wildcards.popn, callsets, int(wildcards.wsize), wildcards.state, anc_root, tree, merged_zarr)
+        c = wildcards.c
+        spp = wildcards.spp
+        chrom = curr_root.require_group(c)
+        fas_suffix = ".fa.masked"
+        # reading the fasta (the vcf file does not have all bases, just where snps were called)
+        record = SeqIO.read(f'{config["hg18_fas_path"]}/{c}{fas_suffix}', "fasta")
+        seq = np.array(list(str(record.seq)), dtype=object)
+        del record
+        pos = callsets[spp][c+'/variants/POS'][:]
+        ref = callsets[spp][c+'/variants/REF'][:]
+        alt = callsets[spp][c+'/variants/ALT'][:,0] # technically, zarr allows multiple alt alleles
+        vcf_alleles = ref + '/' + alt
+        seq[pos-1] = vcf_alleles
+        chrom.create_dataset(name=spp, shape=seq.shape, data = seq, dtype='object', object_codec=numcodecs.JSON())
+
+rule chr_pop_pidxy:
+    input: f'{config["ancestral_zarr_path"]}/{{c}}/great-apes/all', f'{config["current_zarr_path"]}/{{c}}/{{popn}}'
+    output: f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{{c}}_pop_{{popn}}_state_{{state}}_curr_{{curr}}.tsv'
+    resources: cpus=1, runtime=360, mem_mb=54000
+    run:
+        df = calc_pidxy(wildcards.c, chroms[chroms.chr == wildcards.c].clen.item(), wildcards.popn, callsets, int(wildcards.wsize), wildcards.state, anc_root, wildcards.curr, curr_root, tree, merged_zarr)
         df.to_csv(path_or_buf=output[0], index=False, sep="\t")
 
 rule merge:
-    input: [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{popn}_state_{{state}}.tsv' for c in chroms.chr for popn in callsets.keys()]
-    output: f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}.tsv'
+    input: [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{popn}_state_{{state}}_curr_{{curr}}.tsv' for c in chroms.chr for popn in callsets.keys()]
+    output: f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}_curr_{{curr}}.tsv'
     resources: cpus=1, runtime=120
     run:
         dfs = [pd.read_csv(f, sep="\t") for f in input]
@@ -264,9 +330,9 @@ rule ipynb_to_r:
         "Rscript {input.conv_script} {input.in_file}"
 
 rule r_analysis:
-    input: in_file=f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}.tsv', rscript=config["path_Rscript"]
+    input: in_file=f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}_curr_{{curr}}.tsv', rscript=config["path_Rscript"]
     params: outpath = config["out_path"], outpath_figs = config["out_path_figs"], prop_acc = config["prop_acc"]
-    output: f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}_prop-acc_{config["prop_acc"]}.pdf'
+    output: f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}_curr_{{curr}}_prop-acc_{config["prop_acc"]}.pdf'
     resources: cpus=2, runtime=240, mem_mb=76000
     shell:
         "Rscript {input.rscript} {input.in_file} {params.outpath} {params.outpath_figs} {params.prop_acc}" 
