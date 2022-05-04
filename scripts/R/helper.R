@@ -73,7 +73,7 @@ meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv", state_prop_mult=1/
     is_ga_data = grepl(ga_data_str,fname, fixed=TRUE)
     is_sigma = grepl("sigma", fname, fixed=TRUE)
     if (is_ga_data) {
-        strp = '.*win-size_(\\d+)_merged-mask_(\\w+)_state_(.+)'
+        strp = '.*win-size_(\\d+)_merged-mask_(\\w+)_state_(.+)_curr_(.+)'
         if (is.null(prop)){
             strp = paste0(strp, '_prop-acc_(.+)')
         }
@@ -82,15 +82,16 @@ meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv", state_prop_mult=1/
         win_size = matches[2]
         merged_mask = matches[3]
         state = matches[4]
+        curr = matches[5]
         if (is.null(prop)) {
-            prop = matches[5]
+            prop = matches[6]
         }
-        spaced_desc = paste0("win-size=", win_size, " merged-mask=", merged_mask, " state=", state, " prop-acc=", prop)
+        spaced_desc = paste0("win-size=", win_size, " merged-mask=", merged_mask, " state=", state, " curr=", curr, " prop-acc=", prop)
         desc = str_replace_all(spaced_desc, " ", "_")
         desc = str_replace_all(desc, "=", "_")
-        if (state != "all")
+        if (state != "all" | curr != "all")
             prop = prop * state_prop_mult
-        meta = list("win_size" = as.integer(win_size), "merged_mask" = merged_mask, "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=0, "state"=state)
+        meta = list("win_size" = as.integer(win_size), "merged_mask" = merged_mask, "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=0, "state"=state, "curr"=curr)
     } else {
         if (is_sigma) {
             print("entrei")
