@@ -207,14 +207,14 @@ curr_type = {
             }
 is_curr_type =  lambda ctype,c1,c2: np.logical_or(np.in1d(c1, curr_type[ctype]), np.in1d(c2, curr_type[ctype]))
 possible_curr_classes = ["WWSS", "WS", "all"]
-possible_anc_classes = ["all"]
+possible_anc_classes = ["all", "A-T", "G-C", "N"]
 ancestral_alleles_paths = [f'{config["ancestral_zarr_path"]}/{c}/great-apes/all' for  c in chroms.chr]
 chr_pop_files = [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}_state_{state}_curr_all.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"] for state in possible_anc_classes]
 chr_pop_files += [f'{config["out_path"]}{config["out_path_tmp"]}pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_chr_{c}_pop_{pop}_state_all_curr_{curr}.tsv' for c in chroms.chr for pop in callsets.keys() for wsize in config["win_sizes"] for curr in possible_curr_classes]
 merged_out_files = [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}_curr_all.tsv' for wsize in config["win_sizes"] for state in possible_anc_classes]
 merged_out_files += [f'{config["out_path"]}all_pidxy_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_all_curr_{curr}.tsv' for wsize in config["win_sizes"] for curr in possible_curr_classes]
-merged_stat_files = [f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}_curr_all_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"] for state in possible_anc_classes]
-merged_stat_files += [f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_all_curr_{curr}_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"] for curr in possible_curr_classes]
+merged_stat_files = [f'{config["out_path"]}{chrom}/{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_{state}_curr_all_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"] for state in possible_anc_classes for chrom in chroms.chr.tolist()+['all']]
+merged_stat_files += [f'{config["out_path"]}{chrom}/{config["out_path_figs"]}cor-pidxy-dT_win-size_{wsize}_merged-mask_{config["merged_mask"]}_state_all_curr_{curr}_prop-acc_{config["prop_acc"]}.pdf' for wsize in config["win_sizes"] for curr in possible_curr_classes for chrom in chroms.chr.tolist()+['all']]
 
 rule all:
     input: merged_out_files + merged_stat_files + ancestral_alleles_paths 
@@ -298,8 +298,8 @@ rule ipynb_to_r:
 
 rule r_analysis:
     input: in_file=f'{config["out_path"]}all_pidxy_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}_curr_{{curr}}.tsv', rscript=config["path_Rscript"]
-    params: outpath = config["out_path"], outpath_figs = config["out_path_figs"], prop_acc = config["prop_acc"]
-    output: f'{config["out_path"]}{config["out_path_figs"]}cor-pidxy-dT_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}_curr_{{curr}}_prop-acc_{config["prop_acc"]}.pdf'
+    params: outpath = f'{config["out_path"]}{{chrom}}/', outpath_figs = config["out_path_figs"], prop_acc = config["prop_acc"]
+    output: f'{config["out_path"]}{{chrom}}/{config["out_path_figs"]}cor-pidxy-dT_win-size_{{wsize}}_merged-mask_{config["merged_mask"]}_state_{{state}}_curr_{{curr}}_prop-acc_{config["prop_acc"]}.pdf'
     resources: cpus=2, runtime=240, mem_mb=76000
     shell:
         "Rscript {input.rscript} {input.in_file} {params.outpath} {params.outpath_figs} {params.prop_acc}" 
