@@ -68,11 +68,13 @@ get_mrow = function(row, cols, tree, treetbl) {
     return(mrow)
 }
 
-meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv", state_prop_mult=1/8) {
+meta_from_fname = function(fname, outpath, prop=NULL, suffix="\\.tsv", state_prop_mult=1/8) {
     ga_data_str = "greatapes-diversity-data"
     is_ga_data = grepl(ga_data_str,fname, fixed=TRUE)
     is_sigma = grepl("sigma", fname, fixed=TRUE)
     if (is_ga_data) {
+        outmatch = str_match(outpath, '^.+/(.+)/$')
+        chr = outmatch[2]
         strp = '.*win-size_(\\d+)_merged-mask_(\\w+)_state_(.+)_curr_(.+)'
         if (is.null(prop)){
             strp = paste0(strp, '_prop-acc_(.+)')
@@ -91,7 +93,7 @@ meta_from_fname = function(fname, prop=NULL, suffix="\\.tsv", state_prop_mult=1/
         desc = str_replace_all(desc, "=", "_")
         if (state != "all" | curr != "all")
             prop = prop * state_prop_mult
-        meta = list("win_size" = as.integer(win_size), "merged_mask" = merged_mask, "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=0, "state"=state, "curr"=curr)
+        meta = list("win_size" = as.integer(win_size), "merged_mask" = merged_mask, "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=0, "state"=state, "curr"=curr, "chr"=chr)
     } else {
         if (is_sigma) {
             print("entrei")
