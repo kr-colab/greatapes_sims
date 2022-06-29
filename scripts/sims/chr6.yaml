@@ -55,10 +55,8 @@ pos_coef_decay_eps:
 chroms:
   chr:
     - "chr6"
-    - "chr19"
   
   windowing:
-    - -1
     - -1
 
 # sample windows for each chr/win strategy or -1 for not
