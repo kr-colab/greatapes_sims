@@ -94,8 +94,7 @@ for i, row in edges_info.iterrows():
 both_p = np.logical_and(tmp.posrate>0,tmp.poscoef > 0)
 both_p_zero = np.logical_and(tmp.posrate==0,tmp.poscoef == 0)
 if ('pos_coef_decay_eps' in config):
-    both_p_zero = np.logical_and(tmp.poscoefdecayeps ==0, both_p_zero)
-    both_p = np.logical_and(tmp.poscoefdecayeps>0, both_p)
+    both_p_zero = np.logical_and(tmp.poscoefdecayeps == 0, both_p_zero)
 both_d = np.logical_and(tmp.delrate>0,tmp.delcoef < 0)
 both_d_zero = np.logical_and(tmp.delrate==0,tmp.delcoef == 0)
 use_param_comb = np.logical_and(np.logical_or(both_p,both_p_zero),np.logical_or(both_d, both_d_zero))
