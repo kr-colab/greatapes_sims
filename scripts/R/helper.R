@@ -128,3 +128,12 @@ meta_from_fname = function(fname, outpath, prop=NULL, suffix="\\.tsv", state_pro
     }
     return (meta)
 }
+
+my_theme = theme(text=element_text(size=12, family="Arial"), #change font size of all text
+        axis.text=element_text(size=12), #change font size of axis text
+        axis.title=element_text(size=12), #change font size of axis titles
+        plot.title=element_text(size=12), #change font size of plot title
+        legend.text=element_text(size=10), #change font size of legend text
+        legend.title=element_text(size=12)) + #change font size of legend title 
+        theme_bw()#+theme(text=element_text(family="Deja Vu Sans"))
+
