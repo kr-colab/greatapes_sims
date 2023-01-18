@@ -56,6 +56,8 @@ positions = {
                 "western_chimp": 5
                 
             }
+
+
 demog = msprime.Demography.from_species_tree(nwk_tree, initial_size = pop_sizes)
 dgraph = demog.to_demes()
 dgraph.time_units = "Kya"
@@ -63,7 +65,7 @@ w = 0.4* demesdraw.utils.size_max(dgraph)
 for k, v in positions.items():
     positions[k] = v * w
 fig, ax = demesdraw.utils.get_fig_axes(scale=1.2, aspect=3/4)
-ax = demesdraw.tubes(dgraph, ax, labels="xticks", positions=positions) 
+ax = demesdraw.tubes(dgraph, ax, labels="xticks-legend", positions=positions) 
 for tick in ax.get_xticklabels():
     tick.set_rotation(270)
 for tick in ax.get_yticklabels():
