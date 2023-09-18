@@ -3,9 +3,9 @@ import pandas as pd
 
 def get_stats_outfiles_from_rands(rand_ids, stat_win_sizes, reps, mut_win_sizes, sigmas, total_mu, out_path, sample_size, sup=False, ext=".npz"):
     if not sup:
-        return [f"{out_path}{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}_mut-win-size_{mut_win_size}_sigma_{sigma}_total-mut-rate_{total_mu}{ext}" for rand_id in rand_ids for rep in reps for wsize in stat_win_sizes for mut_win_size in mut_win_sizes for sigma in sigmas]
+        return [f"{out_path}{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{mut_win_size}_sample-size_{sample_size}_mut-win-size_{mut_win_size}_sigma_{sigma}_total-mut-rate_{total_mu}{ext}" for rand_id in rand_ids for rep in reps for mut_win_size in mut_win_sizes for sigma in sigmas]
     else:
-        return [f"{out_path}sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}_mut-win-size_{mut_win_size}_sigma_{sigma}_total-mut-rate_{total_mu}{ext}" for rand_id in rand_ids for rep in reps for wsize in stat_win_sizes for mut_win_size in mut_win_sizes for sigma in sigmas]
+        return [f"{out_path}sup-rand-id_{rand_id}_rep_{rep}_win-size_{mut_win_size}_sample-size_{sample_size}_mut-win-size_{mut_win_size}_sigma_{sigma}_total-mut-rate_{total_mu}{ext}" for rand_id in rand_ids for rep in reps for mut_win_size in mut_win_sizes for sigma in sigmas]
 
 def get_coords_dict(rid):
     """Creates a dict string from the tmp data.frame, getting the coords"""
@@ -19,9 +19,10 @@ header_path = "../../output/header_sims_info.tsv"
 sinfo_path = "../../output/sims_info.tsv"
 recaptreespath = "../../output/"
 outpath = "../../output/varmut/"
-sigmas = [f'{s:.3f}' for s in np.round(np.geomspace(0.01, 1, 10),3)] 
+sims_sup_rand_ids = ["8MF0I020MWGI6N41PH", "CR1UIIF8NRSPZ94LGF", "HVD283AEPBL88J4NUN"]
+sigmas = [f'{s:.3f}' for s in np.round(np.geomspace(0.005, 0.15, 10),3)] 
 stat_win_sizes = [1000000]
-mut_win_sizes = [1000000]
+mut_win_sizes = [500000, 1000000, 5000000]
 reps = [0]
 sample_size = 10
 total_mut_rate = 2e-8
@@ -38,46 +39,37 @@ sinfo = sinfo.round(15)
 sinfo.rescf = sinfo.rescf.astype(str)
 sinfo.sort_values(by=["date"], inplace=True)
 
-# this will be used to do the neutral var sims
-df = sinfo[(sinfo.win_len == -1) & (sinfo.padding==0)& (sinfo.rescf == "1") &(sinfo.posrate < 1e-16) &(sinfo.delrate < 1e-16)][diff_cols+["rand_id","sup_rand_id"]].drop_duplicates()
-# this will be used to compute covariances
-all_neut = sinfo[(sinfo.posrate < 1e-16) &(sinfo.delrate < 1e-16)][diff_cols+["rand_id","sup_rand_id"]].drop_duplicates()
+df = sinfo[np.isin(sinfo.sup_rand_id, sims_sup_rand_ids)][diff_cols+["rand_id","sup_rand_id"]].drop_duplicates()
 
-neut_tss = [f"{recaptreespath}"]
+print(df, flush=True)
 
-cov_stats = [f"{recaptreespath}{rid}/{rid}_rep{rep}." for rep in reps for rid in df.rand_id.unique()]
-
+# this will be used to do the mut var sims
 varmut_trees = [f"{outpath}{rand_id}/rand-id_{rand_id}_rep_{rep}_mut-win-size_{mut_win_size}_sigma_{sigma}_total-mut-rate_{total_mut_rate}.union.recap.mut.trees" for rand_id in df.rand_id.unique() for rep in reps for mut_win_size in mut_win_sizes for sigma in sigmas]
 stats_files = get_stats_outfiles_from_rands(df.rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath, sample_size)
 joined_tsvs = get_stats_outfiles_from_rands(df.sup_rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath+"joined_stats/", sample_size, sup=True, ext=".tsv")
+
 final_stats_folders = get_stats_outfiles_from_rands(df.sup_rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, outpath+"sims_results/", sample_size, sup=True, ext="/")
-final_stats_files = [f"figs/cor-pidxy-dT_sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut_{total_mut_rate}_sample-size_{sample_size}_prop-acc_0.4.pdf" for rand_id in df.sup_rand_id.unique() for rep in reps for wsize in stat_win_sizes for mwsize in mut_win_sizes for sigma in sigmas]
+final_stats_files = [f"figs/cor-pidxy-dT_sup-rand-id_{rand_id}_rep_{rep}_win-size_{mwsize}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut_{total_mut_rate}_sample-size_{sample_size}_prop-acc_0.4.pdf" for rand_id in df.sup_rand_id.unique() for rep in reps for mwsize in mut_win_sizes for sigma in sigmas]
 #final_stats_files = get_stats_outfiles_from_rands(df.sup_rand_id.unique(), stat_win_sizes, reps, mut_win_sizes, sigmas, total_mut_rate, "figs/cor-pidxy-dT_", sample_size, sup=True, ext=".pdf")
 #final_stats_files = [f"figs/cor-pidxy-dT_sup-rand-id_{rand_id}_rep_{rep}_win-size_{wsize}_sample-size_{sample_size}_prop-acc_0.4.pdf" for rand_id in df.sup_rand_id.unique()for rep in reps for wsize in stat_win_sizes for sigma in sigmas]
 final_stats = [final_stats_folders[i]+final_stats_files[i] for i in range(len(final_stats_files))]
 print(varmut_trees)
 print(joined_tsvs)
 print(final_stats)
-#from snakemake.utils import min_version
-#min_version("6.0")
 
-
-#module sims:
-#    snakefile: "./rules.snake"
-#    config: config
-
+#from snakemake.utils import 
 rule all:
     input: varmut_trees + joined_tsvs +final_stats
 
 rule overlay_varmut:
     input: infilepath = recaptreespath + "{rand_id}/{rand_id}_rep{rep}.union.recap.mut.trees", popfilepath = recaptreespath + "{rand_id}/{rand_id}_rep{rep}.pops" 
-    params: coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id), popoutfile=outpath + "{rand_id}/{rand_id}_rep{rep}.pops"
+    params: coords_dict=lambda wildcards: get_coords_dict(wildcards.rand_id), popoutfile=outpath + "{rand_id}/{rand_id}_rep{rep}.pops", region_mut_rate = lambda wildcards: sinfo[sinfo.rand_id==wildcards.rand_id].mu.unique()[0]
     output: outfile=outpath + "{rand_id}/rand-id_{rand_id}_rep_{rep}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.union.recap.mut.trees"
-    resources: mem_mb=lambda wildcards, attempt: attempt * 128000, runtime=5*24*60
+    resources: mem_mb=lambda wildcards, attempt: attempt * 256000, runtime=5*24*60
     threads: 2
     shell:
         """
-        python3 ../py/overlay_varmut.py {input.infilepath} {output.outfile} {wildcards.mwsize} {wildcards.tmrate} {wildcards.sigma} \"{params.coords_dict}\"
+        python3 ../py/overlay_varmut.py {input.infilepath} {output.outfile} {wildcards.rand_id} {wildcards.mwsize} {wildcards.tmrate} {params.region_mut_rate} {wildcards.sigma} \"{params.coords_dict}\"
         cp {input.popfilepath} {params.popoutfile}
         """
 #use rule stats from sims as sims_stats with:
@@ -93,7 +85,7 @@ rule stats:
         outpath + "{rand_id}/rand-id_{rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.npz"
     threads: 2
     shell:
-        "python3 ../py/stats_from_ts.py {input} {params.popsfilepath} {output} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\""
+        "python3 ../py/stats_from_ts.py {input} {params.popsfilepath} {output} {wildcards.win_size} {wildcards.sample_size} \"{params.coords_dict}\" {wildcards.rand_id}"
 
 #use rule join_windows from sims as sims_join_windows with:
 rule join_windows:

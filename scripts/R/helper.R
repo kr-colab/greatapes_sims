@@ -72,6 +72,7 @@ meta_from_fname = function(fname, outpath, prop=NULL, suffix="\\.tsv", state_pro
     ga_data_str = "greatapes-diversity-data"
     is_ga_data = grepl(ga_data_str,fname, fixed=TRUE)
     is_sigma = grepl("sigma", fname, fixed=TRUE)
+    is_noex = grepl("noex", fname, fixed=TRUE)
     if (is_ga_data) {
         outmatch = str_match(outpath, '^.+/(.+)/$')
         chr = outmatch[2]
@@ -112,13 +113,20 @@ meta_from_fname = function(fname, outpath, prop=NULL, suffix="\\.tsv", state_pro
             desc = str_replace_all(desc, "\n", "_")
             meta = list("win_size" = as.integer(win_size), "sup_rand_id"= suprand, "rep"=as.integer(rep), "sample_size"=as.integer(sample_size), "spaced_desc"=spaced_desc, "desc" = desc, "prop" = as.numeric(prop), "is_ga_data"=is_ga_data, "sigma"=sigma, "state"="all")
         } else {
-            strp = paste0('.*sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)', suffix)
+            if(is_noex) {
+                strp = paste0('.*sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)_noex', suffix)
+            } else {
+                strp = paste0('.*sup-rand-id_(.+)_rep_(\\d+)_win-size_(\\d+)_sample-size_(\\d+)', suffix)
+            }
             matches = str_match(fname, strp)
             suprand = matches[2]
             rep = matches[3]
             win_size = matches[4]
             sample_size = matches[5]
             spaced_desc = paste0("sup-rand-id=", suprand, " rep=", rep, "\nwin-size=", win_size, " sample-size=", sample_size, " prop-acc=", prop)
+            if(is_noex) {
+                spaced_desc = paste0(spaced_desc," noex")
+            }
             desc = str_replace_all(spaced_desc, " ", "_")
             desc = str_replace_all(desc, "=", "_")
             desc = str_replace_all(desc, "\n", "_")

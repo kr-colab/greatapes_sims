@@ -69,6 +69,7 @@ padding:
 # Sample size to compute statistics on and window sizes
 stat_sample_size: 10
 stat_win_sizes:
-  - 10000
   - 100000
+  - 500000
   - 1000000
+  - 5000000

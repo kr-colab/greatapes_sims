@@ -29,10 +29,30 @@ module sims_partialsweeps_workflow:
 
 use rule all from sims_partialsweeps_workflow as chr12partial_all
 
+with open("chr12_weak.yaml") as f:
+    config_weak = yaml.load(f, Loader=yaml.FullLoader)
+
+module sims_weak_workflow:
+    snakefile: "ga_sims.snake"
+    config: config_weak 
+
+use rule all from sims_weak_workflow as chr12weak_all
+
+with open("chr12_missing_weakposonly.yaml") as f:
+    config_missing = yaml.load(f, Loader=yaml.FullLoader)
+
+module sims_missing_workflow:
+    snakefile: "ga_sims.snake"
+    config: config_missing
+
+use rule all from sims_missing_workflow as chr12missing_all
+
 # Define a new default target that collects all the targets from the modules.
 rule all:
     input:
         rules.chr12full_all.input,
         rules.chr12strongbgs_all.input,
-        rules.chr12partial_all.input
+        rules.chr12partial_all.input,
+        rules.chr12weak_all.input,
+        rules.chr12missing_all.input
     default_target: True

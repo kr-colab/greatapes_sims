@@ -17,6 +17,8 @@ parser.add_argument('outfilepath', type=str)
 parser.add_argument('win_size', type=lambda x: int(float(x)))
 parser.add_argument('sample_size', type=int)
 parser.add_argument('coords_dict', type=str, help="String of a dictionary with padded and non-padded start and ends of the chromosomic region. Assumes one chromosome only!")
+parser.add_argument('rand_id', type=str)
+parser.add_argument('--delete-exons',help="If passed, all the trees from the exons will be removed", action="store_true")
 parser.add_argument('--seed', type=int, default=8991, required=False)
 
 args = vars(parser.parse_args())
@@ -37,15 +39,32 @@ samples = sample_from_ts(recap_tsu, sample_size=args["sample_size"], rng=rng)
 sample_sets = list(samples.values())
 print("samples selected", flush=True)
 
+if args["delete_exons"]:
+    print("Deleting trees from exon intervals", flush=True)
+    ex_path = f"../../output/maps/{args['rand_id']}_exons.tsv"
+    # exons file
+    exons = pd.read_csv(ex_path,sep="\t",header=None)
+    # removing extraneous columns?
+    exons = exons.iloc[:,:3]
+    intervals = exons.iloc[:,1:].to_numpy()
+    pos = recap_tsu.tables.sites.position
+    is_win_exon = ~(np.searchsorted(intervals.flatten(),pos, side="right") % 2 == 0)
+    sites_to_delete = np.where(is_win_exon)[0]
+    recap_tsu = recap_tsu.delete_sites(sites_to_delete)
+
 # windowing
 start = coords_dict['start']-coords_dict['padded_start']
 stop = (coords_dict['end']-coords_dict['padded_start'])
 expected_length = (coords_dict['padded_end']-coords_dict['padded_start'])
 assert abs(recap_tsu.sequence_length - expected_length) < 1e-14
 # coordinate windows: windows in actual chromosome scale, this only matters if the simulations are not chromosome scale, but instead were windowed
-coord_windows = np.arange(start=coords_dict['start'], stop=coords_dict['end']+1, step=args['win_size'])
+coord_windows = np.arange(start=coords_dict['start'], stop=coords_dict['end'], step=args['win_size'])
 # windows but in simulation size scale (0-L)
-windows = np.arange(start=start,stop=stop+1, step=args["win_size"])
+windows = np.arange(start=start,stop=stop, step=args["win_size"])
+if coord_windows[-1] != coords_dict['end']:
+    coord_windows = np.concatenate([coord_windows, [coords_dict["end"]]])
+if windows[-1] != stop:
+    windows = np.concatenate([windows, [stop]])
 assert coord_windows.shape == windows.shape
 
 # dealing with padding
