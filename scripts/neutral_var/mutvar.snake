@@ -90,7 +90,7 @@ rule stats:
 #use rule join_windows from sims as sims_join_windows with:
 rule join_windows:
     input:
-        lambda wildcards: get_stats_outfiles_from_rands(df[df.sup_rand_id==wildcards.sup_rand_id].rand_id.unique(), [wildcards.win_size], [wildcards.rep], mut_win_sizes, [wildcards.sigma], total_mut_rate, config['out_path'], sample_size)
+        lambda wildcards: get_stats_outfiles_from_rands(df[df.sup_rand_id==wildcards.sup_rand_id].rand_id.unique(), [wildcards.win_size], [wildcards.rep], [wildcards.win_size], [wildcards.sigma], total_mut_rate, config['out_path'], sample_size)
     benchmark:
         "../../sup-rand-id_{sup_rand_id}_rep_{rep}_win-size_{win_size}_sample-size_{sample_size}_mut-win-size_{mwsize}_sigma_{sigma}_total-mut-rate_{tmrate}.txt"
     output:
